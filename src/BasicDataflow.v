@@ -16,7 +16,6 @@ between any two cores. *)
 
 Notation "x <? y" := (Nat.ltb x y) (at level 70).
 
-
 (* Core ids are numbers and they map to the 2d grid with math *)
 
 Definition core_id_to_coords (c : core_id) (n m : nat) : nat * nat :=
@@ -52,8 +51,8 @@ Proof.
   apply Nat.ltb_lt in Hy.
   split.
   - (* (y * m + x) mod m = x *)
-    rewrite Nat.add_mod by lia.
-    rewrite Nat.mod_mul by lia.
+    rewrite Nat.Div0.add_mod by lia.
+    rewrite Nat.Div0.mod_mul by lia.
     rewrite Nat.add_0_l.
     unfold valid_grid in Hvalid. destruct Hvalid as [_ Hm].
     rewrite Nat.mod_small by (apply Nat.mod_upper_bound; lia).
@@ -76,7 +75,7 @@ Proof.
    unfold valid_grid in Hvalid. destruct Hvalid as [Hn Hm].
    apply andb_true_iff. split.
    - apply Nat.ltb_lt. apply Nat.mod_upper_bound. lia.
-  - apply Nat.ltb_lt. apply Nat.div_lt_upper_bound; lia.
+  - apply Nat.ltb_lt. apply Nat.Div0.div_lt_upper_bound; lia.
 Qed. 
 
 (* Prove the other direction *)
