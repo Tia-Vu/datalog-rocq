@@ -88,7 +88,9 @@ Definition good_network (net : DataflowNetwork) (program : list rule) : Prop :=
    possible coming definitions. *)
 
 Theorem soundness (net : DataflowNetwork) (program : list rule) :
-  forall f, network_prog_impl_fact net f -> Datalog.prog_impl_fact program f.
+  forall f, 
+  good_network net program ->
+  network_prog_impl_fact net f -> Datalog.prog_impl_fact program f.
 Admitted.
 
 Theorem completeness (net : DataflowNetwork) (program : list rule) :
