@@ -49,28 +49,29 @@ Section DistributedDatalog.
 
 (* Is there a nicer way to represent this? Seems a bit handwavy or whatever...*)
 
-Inductive network_pftree (net : DataflowNetwork) : Node -> rel * list T -> Prop :=
+Definition fact_on_node := (Node * (rel * list T))%type.
+
+Inductive network_step (net : DataflowNetwork) : fact_on_node -> list (fact_on_node) -> Prop :=
   | RuleApp n f r hyps :
       In r (net.(layout) n) ->
-      Forall (network_pftree net n) hyps ->
-      Datalog.rule_impl r f hyps ->
-      network_pftree net n f
+      Forall (fun n' => n' = n) (map fst hyps) ->
+      Datalog.rule_impl r f (map snd hyps) ->
+      network_step net (n, f) hyps
   | Forward n n' f :
-      network_pftree net n f ->
       net.(forward) n f = Some n' ->
-      network_pftree net n' f.
+      network_step net (n', f) [(n, f)].
+
+Definition network_pftree (net : DataflowNetwork) : fact_on_node -> Prop :=
+  pftree (fun fact_node hyps => network_step net fact_node hyps).
 
 Definition network_prog_impl_fact (net : DataflowNetwork) : rel * list T -> Prop :=
-  fun f => exists n, network_pftree net n f.
-    
-Definition rule_assigned_to_node (layout : Layout) (r : rule) (n : Node) : Prop :=
-  In r (layout n).
+  fun f => exists n, network_pftree net (n, f).
 
 (* A good layout has every program rule on a node somewhere AND only assigns rules from 
    the program to nodes*)
 Definition good_layout (layout : Layout) (nodes : Node -> Prop) (program : list rule) : Prop :=
-   Forall (fun r => exists n, nodes n /\ rule_assigned_to_node layout r n) program /\
-   forall n r, nodes n /\ rule_assigned_to_node layout r n -> In r program.
+   Forall (fun r => exists n, nodes n /\ In r (layout n)) program /\
+   forall n r, nodes n /\ (In r (layout n) -> In r program).
 
 (* A good forwarding function should only be able to forward things along the 
    edges *)
@@ -82,21 +83,58 @@ Definition good_network (net : DataflowNetwork) (program : list rule) : Prop :=
   good_layout net.(layout) net.(graph).(nodes) program /\
   good_forwarding net.(forward) net.(graph).(nodes) net.(graph).(edge).
 
-
-(* These aren't necessarily true in general, we have to consider our layout and 
-   forwarding function to make this true, but these are placeholders for now for the 
-   possible coming definitions. *)
+(* Some of these aren't properly formulated with the right conditions yet, but
+   this is kinda the framework I'm going for here. *)
+Theorem soundness' (net : DataflowNetwork) (program : list rule) :
+  forall n f, 
+  good_network net program ->
+  network_pftree net (n, f)  ->
+  Datalog.prog_impl_fact program f.
+Proof.
+  intros. remember (n, f) as node_fact.
+  generalize dependent n. generalize dependent f.
+  induction H0.
+  intros.
+  subst.
+  unfold prog_impl_fact.
+  inversion H0.
+  - econstructor.
+   + unfold good_network in H. fwd.
+     unfold good_layout in Hp1. fwd.
+     specialize (Hp1p1 n r). 
+     destruct Hp1p1 as [Hnode Hin].
+     apply Hin in H5.
+     apply Exists_exists.
+     exists r; eauto.
+   + apply Forall_map; subst.
+    eapply Forall_impl; eauto.
+    intros.
+    simpl in H3.
+    destruct a.
+    simpl.
+    eapply H3; eauto.
+  - rewrite <- H4 in H2. 
+    inversion H2.
+    eapply H9; eauto.
+Qed.
 
 Theorem soundness (net : DataflowNetwork) (program : list rule) :
   forall f, 
   good_network net program ->
-  network_prog_impl_fact net f -> Datalog.prog_impl_fact program f.
-Admitted.
+  network_prog_impl_fact net f ->
+  Datalog.prog_impl_fact program f.
+Proof.
+  intros.
+  destruct H0.
+  unfold network_prog_impl_fact in H0.
+  eapply soundness'; eauto.
+Qed.
 
 Theorem completeness (net : DataflowNetwork) (program : list rule) :
   forall f, Datalog.prog_impl_fact program f -> 
   good_network net program ->
   network_prog_impl_fact net f.
+Proof.
 Admitted.
 
 End DistributedDatalog.
