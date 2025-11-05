@@ -95,10 +95,19 @@ Definition good_layout (layout : Layout) (nodes : Node -> Prop) (program : list 
 Definition good_forwarding (forward : ForwardingFn) (nodes : Node -> Prop) (edges : Node -> Node -> Prop) : Prop :=
   forall n1 n2 f, forward n1 f = Some n2 -> nodes n1 /\ nodes n2 /\ edges n1 n2.  
 
+(* This is a temporary thing, the format will change once we have a solid streaming
+   model. *)
+
+Definition good_input (input : InputFn) (program : list rule) : Prop := 
+  forall n f, input n f ->
+    exists r, In r program /\
+              Datalog.rule_impl r f [].
+
 Definition good_network (net : DataflowNetwork) (program : list rule) : Prop :=
   good_graph net.(graph) /\
   good_layout net.(layout) net.(graph).(nodes) program /\
-  good_forwarding net.(forward) net.(graph).(nodes) net.(graph).(edge).
+  good_forwarding net.(forward) net.(graph).(nodes) net.(graph).(edge) /\
+  good_input net.(input) program.
 
 Lemma Forall_get_facts_on_node :
   forall (l : list network_prop)
@@ -115,6 +124,7 @@ Proof.
       * eapply IHl; inversion H0; eauto.
     + eapply IHl; inversion H0; eauto.
 Qed.
+ 
 (* Some of these aren't properly formulated with the right conditions yet, but
    this is kinda the framework I'm going for here. *)
 Theorem soundness' (net : DataflowNetwork) (program : list rule) :
@@ -130,8 +140,13 @@ Proof.
   subst.
   unfold prog_impl_fact.
   inversion H0.
-  - admit. (* TODO define a relation for when relations are input into
-              the program*)
+  - unfold good_network in H. fwd.
+    unfold good_input in Hp3.
+    specialize (Hp3 n f); subst.
+    apply Hp3 in H6.
+    econstructor; eauto.
+    apply Exists_exists.
+    eauto.
   - econstructor.
    + unfold good_network in H. fwd.
      unfold good_layout in Hp1. fwd.
@@ -148,7 +163,7 @@ Proof.
   - rewrite <- H4 in H2. 
     inversion H2.
     eapply H9; eauto.
-Admitted.
+Qed.
 
 Theorem soundness (net : DataflowNetwork) (program : list rule) :
   forall f, 
@@ -160,7 +175,7 @@ Proof.
   destruct H0.
   unfold network_prog_impl_fact in H0.
   eapply soundness'; eauto.
-Admitted.
+Qed.
 
 Theorem completeness (net : DataflowNetwork) (program : list rule) :
   forall f, Datalog.prog_impl_fact program f -> 
