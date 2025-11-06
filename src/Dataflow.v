@@ -73,7 +73,7 @@ Inductive network_step (net : DataflowNetwork) : network_prop -> list (network_p
       network_step net (FactOnNode n f) (hyps)
   | Forward n n' f :
       net.(forward) n f = Some n' ->
-      network_step net (FactOnNode n f) [FactOnNode n' f]
+      network_step net (FactOnNode n' f) [FactOnNode n f]
   | OutputStep n f :
       net.(output) n f ->
       network_step net (Output n f) [FactOnNode n f].
