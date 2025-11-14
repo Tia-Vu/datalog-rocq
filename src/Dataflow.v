@@ -82,7 +82,7 @@ Definition network_pftree (net : DataflowNetwork) : network_prop -> Prop :=
   pftree (fun fact_node hyps => network_step net fact_node hyps).
 
 Definition network_prog_impl_fact (net : DataflowNetwork) : rel * list T -> Prop :=
-  fun f => exists n, network_pftree net (FactOnNode n f).
+  fun f => exists n, network_pftree net (Output n f).
 
 (* A good layout has every program rule on a node somewhere AND only assigns rules from 
    the program to nodes *)
@@ -174,6 +174,10 @@ Proof.
   intros.
   destruct H0.
   unfold network_prog_impl_fact in H0.
+  inversion H0.
+  inversion H1.
+  subst.
+  inversion H2.
   eapply soundness'; eauto.
 Qed.
 
