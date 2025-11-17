@@ -17,7 +17,8 @@ Definition rule := rule rel var fn aggregator.
 Definition empty_rule : rule :=
   {| rule_agg := None; 
      rule_hyps := [];
-     rule_concls := [] |}.
+     rule_concls := []; 
+     rule_set_hyps := [] |}.
 
 Definition edge_path_rule : rule :=
   {| rule_agg := None;
@@ -28,7 +29,8 @@ Definition edge_path_rule : rule :=
      rule_concls := [
        {| fact_R := "path";
          fact_args := [(var_expr "x"); (var_expr "y")]|}
-     ] |}.
+     ]; 
+     rule_set_hyps := []|}.
 
 (* Constants *)
 
@@ -46,7 +48,8 @@ Definition everything_connects_to_42_rule : rule :=
      rule_concls := [
        {| fact_R := "edge";
           fact_args := [var_expr "x"; const "42"] |}
-     ] |}.
+     ];
+     rule_set_hyps := [] |}.
 
 (* Example: friends(alice, bob) :- . 
    A fact about friendship with only constants *)
@@ -56,4 +59,5 @@ Definition alice_bob_friend : rule :=
      rule_concls := [
        {| fact_R := "friends";
           fact_args := [const "alice"; const "bob"] |}
-     ] |}.
+     ];
+     rule_set_hyps := [] |}.
