@@ -11,64 +11,44 @@ Section DistributedDatalog.
   Context `{query_sig : query_signature rel}.
   Context {context : map.map var T}.
   Context {context_ok : map.ok context}.
-  Context {Node Info Port : Type}.
-  Context {port_eqb : Port -> Port -> bool}.
-  Context {port_eqb_spec : forall x y, BoolSpec (x = y) (x <> y) (port_eqb x y)}.
+  Context {Node Info : Type}.
   Context {node_eqb : Node -> Node -> bool}.
   Context {node_eqb_spec : forall x y, BoolSpec (x = y) (x <> y) (node_eqb x y)}.
 
   Definition fact := Datalog.fact rel var fn.
   Definition rule := Datalog.rule rel var fn aggregator.
 
-   Record Edge := {
-    e_src_node : Node;
-    e_src_port : Port;  (* output port on src *)
-    e_dst_node : Node;
-    e_dst_port : Port   (* input port on dst *)
+  Record Graph := {
+    nodes : Node -> Prop;
+    edge : Node -> Node -> Prop
   }.
 
-  Record GraphPorts := {
-    g_nodes : Node -> Prop;
-    g_edge  : Edge -> Prop
-  }.
+  Definition good_graph (g : Graph) := 
+   forall n1 n2, edge g n1 n2 -> nodes g n1 /\ nodes g n2.
 
-  Definition good_graph (g : GraphPorts) := 
-  forall e, g.(g_edge) e -> g.(g_nodes) (e.(e_src_node)) /\ g.(g_nodes) (e.(e_dst_node)).
-
-  (* helper: incoming/outgoing edges for a node *)
-  Definition outgoing (g : GraphPorts) (n : Node) (p : Port) (e : Edge) : Prop :=
-    g.(g_edge) e /\ e.(e_src_node) = n /\ e.(e_src_port) = p.
-
-  Definition incoming (g : GraphPorts) (n : Node) (p : Port) (e : Edge) : Prop :=
-    g.(g_edge) e /\ e.(e_dst_node) = n /\ e.(e_dst_port) = p.
-  
-  Inductive path (g : GraphPorts) : Node -> Node -> Prop :=
-    | path_refl n : g.(g_nodes) n -> path g n n
-    | path_step n1 n2 n3 p1 p2 :
-        g.(g_edge) {| e_src_node := n1; e_src_port := p1; e_dst_node := n2; e_dst_port := p2 |} ->
+  Inductive path (g : Graph) : Node -> Node -> Prop :=
+    | path_nil n :
+        g.(nodes) n ->
+        path g n n 
+    | path_cons n1 n2 n3 :
+        g.(edge) n1 n2 ->
         path g n2 n3 ->
         path g n1 n3.
+  
+  Definition strongly_connected (g : Graph) : Prop :=
+    forall n1 n2, g.(nodes) n1 -> g.(nodes) n2 -> path g n1 n2.
 
-  Definition strongly_connected (g : GraphPorts) : Prop :=
-    forall n1 n2, g.(g_nodes) n1 -> g.(g_nodes) n2 -> path g n1 n2.
-
-  Definition RuleLayout := Node -> list rule.
-  Definition PortLayout := Node -> list Port.
-
-  Definition ForwardingTable := rel * list T -> option (list Port).
-  Definition NodeForwarding := Node -> ForwardingTable.
-
+  Definition ForwardingFn := Node -> rel * list T -> option Node.
   Definition InputFn := Node -> rel * list T -> Prop.
   Definition OutputFn := Node -> rel * list T -> Prop.
-
+  Definition Layout := Node -> list rule.
 
   Record DataflowNetwork := {
-    topology : GraphPorts;
-    port_layout : PortLayout;  
-    forwarding_tables : NodeForwarding;  
-    input :  InputFn;         
+    graph : Graph;
+    forward : ForwardingFn;
+    input :  InputFn;
     output : OutputFn;
-    rule_layout : RuleLayout
+    layout : Layout
   }.
 
 Inductive network_prop := 
@@ -87,14 +67,12 @@ Inductive network_step (net : DataflowNetwork) : network_prop -> list (network_p
       net.(input) n f ->
       network_step net (FactOnNode n f) []
   | RuleApp n f r hyps :
-      In r (net.(rule_layout) n) ->
+      In r (net.(layout) n) ->
       Forall (fun n' => n' = n) (map fst (get_facts_on_node hyps)) ->
       Datalog.rule_impl r f (map snd (get_facts_on_node hyps)) ->
       network_step net (FactOnNode n f) (hyps)
-  | Forward n p n' p' f ports :
-      net.(forwarding_tables) n f = Some ports ->
-      In p ports ->
-      net.(topology).(g_edge) {| e_src_node := n; e_src_port := p; e_dst_node := n'; e_dst_port := p' |} ->
+  | Forward n n' f :
+      net.(forward) n f = Some n' ->
       network_step net (FactOnNode n' f) [FactOnNode n f]
   | OutputStep n f :
       net.(output) n f ->
@@ -108,9 +86,14 @@ Definition network_prog_impl_fact (net : DataflowNetwork) : rel * list T -> Prop
 
 (* A good layout has every program rule on a node somewhere AND only assigns rules from 
    the program to nodes *)
-Definition good_layout (layout : RuleLayout) (nodes : Node -> Prop) (program : list rule) : Prop :=
+Definition good_layout (layout : Layout) (nodes : Node -> Prop) (program : list rule) : Prop :=
    Forall (fun r => exists n, nodes n /\ In r (layout n)) program /\
    forall n r, nodes n /\ (In r (layout n) -> In r program).
+
+(* A good forwarding function should only be able to forward things along the 
+   edges *)
+Definition good_forwarding (forward : ForwardingFn) (nodes : Node -> Prop) (edges : Node -> Node -> Prop) : Prop :=
+  forall n1 n2 f, forward n1 f = Some n2 -> nodes n1 /\ nodes n2 /\ edges n1 n2.  
 
 (* This is a temporary thing, the format will change once we have a solid streaming
    model. *)
@@ -121,10 +104,10 @@ Definition good_input (input : InputFn) (program : list rule) : Prop :=
               Datalog.rule_impl r f [].
 
 Definition good_network (net : DataflowNetwork) (program : list rule) : Prop :=
-  good_graph net.(topology) /\
-  good_layout net.(rule_layout) net.(topology).(g_nodes) program /\
+  good_graph net.(graph) /\
+  good_layout net.(layout) net.(graph).(nodes) program /\
+  good_forwarding net.(forward) net.(graph).(nodes) net.(graph).(edge) /\
   good_input net.(input) program.
-
 
 Lemma Forall_get_facts_on_node :
   forall (l : list network_prop)
@@ -158,9 +141,9 @@ Proof.
   unfold prog_impl_fact.
   inversion H0.
   - unfold good_network in H. fwd.
-    unfold good_input in Hp2.
-    specialize (Hp2 n f); subst.
-    apply Hp2 in H6.
+    unfold good_input in Hp3.
+    specialize (Hp3 n f); subst.
+    apply Hp3 in H6.
     econstructor; eauto.
     apply Exists_exists.
     eauto.
@@ -173,13 +156,13 @@ Proof.
      apply Exists_exists.
      exists r; eauto.
    + apply Forall_map; subst.
-     eapply Forall_get_facts_on_node; eauto.
-     intros.
-     simpl in H3.
-     eapply H3; eauto.
-  - subst.
+    eapply Forall_get_facts_on_node; eauto.
+    intros.
+    simpl in H3.
+    eapply H3; eauto.
+  - rewrite <- H4 in H2. 
     inversion H2.
-    eapply H7; eauto.
+    eapply H9; eauto.
 Qed.
 
 Theorem soundness (net : DataflowNetwork) (program : list rule) :
