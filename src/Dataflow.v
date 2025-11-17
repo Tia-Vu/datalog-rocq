@@ -91,10 +91,10 @@ Inductive network_step (net : DataflowNetwork) : network_prop -> list (network_p
       Forall (fun n' => n' = n) (map fst (get_facts_on_node hyps)) ->
       Datalog.rule_impl r f (map snd (get_facts_on_node hyps)) ->
       network_step net (FactOnNode n f) (hyps)
-  | Forward n p n' f ports :
+  | Forward n p n' p' f ports :
       net.(forwarding_tables) n f = Some ports ->
       In p ports ->
-      net.(topology).(g_edge) {| e_src_node := n; e_src_port := p; e_dst_node := n'; e_dst_port := p |} ->
+      net.(topology).(g_edge) {| e_src_node := n; e_src_port := p; e_dst_node := n'; e_dst_port := p' |} ->
       network_step net (FactOnNode n' f) [FactOnNode n f]
   | OutputStep n f :
       net.(output) n f ->
