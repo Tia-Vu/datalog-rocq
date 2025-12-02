@@ -61,3 +61,9 @@ Definition alice_bob_friend : rule :=
           fact_args := [const "alice"; const "bob"] |}
      ];
      rule_set_hyps := [] |}.
+
+Definition example_program: list rule :=
+   [edge_path_rule; everything_connects_to_42_rule; alice_bob_friend].
+
+Definition computed_example_program := Eval compute in example_program.
+Print computed_example_program.

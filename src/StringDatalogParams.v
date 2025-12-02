@@ -43,7 +43,7 @@ Fixpoint expr_compatible (e1 e2 : expr) : bool :=
   | Datalog.fun_expr _ [], Datalog.var_expr _ =>
       true
   | Datalog.fun_expr f1 args1, Datalog.fun_expr f2 args2 =>
-      String.eqb f1 f2 &&
+      fn_eqb f1 f2 &&
       (fix expr_list_eqb (l1 l2 : list expr) : bool :=
          match l1, l2 with
          | [], [] => true

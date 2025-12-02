@@ -42,4 +42,7 @@ End family_examples.
 Compute StringDependencyGenerator.get_program_dependencies family_examples.family_program.
 Compute StringDependencyGenerator.get_rule_dependencies
         family_examples.family_program
-        family_examples.r_cousin.
+        family_examples.r_ancestor2.
+
+Compute StringDependencyGenerator.get_program_dependencies_flat
+        family_examples.family_program.

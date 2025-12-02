@@ -14,8 +14,6 @@ Module Type DatalogParams.
 Parameter rel var fn aggregator T : Type.
 Parameter var_eqb : var -> var -> bool.
 Parameter var_eqb_spec :  forall x0 y0 : var, BoolSpec (x0 = y0) (x0 <> y0) (var_eqb x0 y0).
-Parameter fn_eqb : fn -> fn -> bool.
-Parameter fn_eqb_spec :  forall x0 y0 : fn, BoolSpec (x0 = y0) (x0 <> y0) (fn_eqb x0 y0).
 Parameter rel_eqb : rel -> rel -> bool.
 Parameter rel_eqb_spec : forall x0 y0 : rel, BoolSpec (x0 = y0) (x0 <> y0) (rel_eqb x0 y0).
 
@@ -149,6 +147,15 @@ Definition get_rule_hyps_rels (r : rule) : list rel :=
 
 (* Pattern Matching *)
 
+Definition get_agg_hyps (r : rule) : list fact :=
+  match Datalog.rule_agg r with
+  | None => []
+  | Some (_, ae) => Datalog.agg_hyps ae
+  end.
+
+Definition get_all_hyps (r : rule) : list fact :=
+  Datalog.rule_hyps r ++ get_agg_hyps r.
+
 Definition facts_compatible (f1 f2 : fact) : bool :=
   rel_eqb (Datalog.fact_R f1) (Datalog.fact_R f2) &&
   list_eqb expr_compatible (Datalog.fact_args f1) (Datalog.fact_args f2).
@@ -158,7 +165,7 @@ Definition conc_matches_hyp (conc hyp : fact) : bool :=
 
 Definition rule_concls_match_hyps (r1 r2 : rule) : bool :=
   existsb (fun conc => 
-    existsb (fun hyp => conc_matches_hyp conc hyp) (Datalog.rule_hyps r2)
+    existsb (fun hyp => conc_matches_hyp conc hyp) (get_all_hyps r2)
   ) (Datalog.rule_concls r1).
 
 Definition rule_depends_on (r1 r2 : rule) : bool :=
@@ -172,5 +179,50 @@ Definition get_rules_dependent_on (p : program) (r : rule) : program :=
 
 Definition get_program_dependencies (p : program) : list (rule * list rule) :=
   map (fun r => (r, get_rule_dependencies p r)) p.
+
+Definition fact_eqb (f1 f2 : fact) : bool :=
+  rel_eqb (fact_R f1) (fact_R f2) &&
+  list_eqb expr_compatible (fact_args f1) (fact_args f2).
+
+Definition rule_eqb (r1 r2 : rule) : bool :=
+  list_eqb fact_eqb (Datalog.rule_hyps r1) (Datalog.rule_hyps r2) &&
+  list_eqb fact_eqb (Datalog.rule_concls r1) (Datalog.rule_concls r2) &&
+  match Datalog.rule_agg r1, Datalog.rule_agg r2 with
+  | None, None => true
+  | Some (a1, ae1), Some (a2, ae2) =>
+      var_eqb a1 a2 &&
+      list_eqb fact_eqb (Datalog.agg_hyps ae1) (Datalog.agg_hyps ae2)
+  | _, _ => false
+  end.
+
+Fixpoint lookup_rule_number (r : rule) (p : program) (n : nat) : option nat :=
+  match p with
+  | [] => None
+  | r' :: ps =>
+      if rule_eqb r r' then Some n
+      else lookup_rule_number r ps (n + 1)
+  end.
+
+Definition get_program_dependencies_by_index (p : program) : list (nat * list nat) :=
+  let fix aux lst n :=
+      match lst with
+      | [] => []
+      | r :: rs =>
+          let deps := get_rule_dependencies p r in
+          let dep_indices :=
+            flat_map (fun dep =>
+                        match lookup_rule_number dep p 0 with
+                        | Some idx => [idx]
+                        | None => []
+                        end) deps
+          in
+          (n, dep_indices) :: aux rs (n + 1)
+      end
+  in aux p 0.
+
+Definition get_program_dependencies_flat (p : program) : list (nat * nat) :=
+  flat_map (fun '(n, deps) => List.map (fun idx => (n, idx)) deps)
+           (get_program_dependencies_by_index p).
+
 
 End DependencyGenerator.
