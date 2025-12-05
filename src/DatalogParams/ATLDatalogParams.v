@@ -76,7 +76,7 @@ Definition expr_compatible (e1 e2 : expr) : bool :=
       true
   | Datalog.fun_expr _ [], Datalog.var_expr _ =>
       true
-  | Datalog.fun_expr f1 args1, Datalog.fun_expr f2 args2 => true (* For now we don't think about function equality *)
+  | Datalog.fun_expr f1 _, Datalog.fun_expr f2 _ => true (* For now we don't think about function equality *)
   | _, _ => false
   end.
 
