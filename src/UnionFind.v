@@ -1,4 +1,4 @@
-From Coq Require Import Lists.List Arith.PeanoNat.
+From Stdlib Require Import List Arith.
 Import ListNotations.
 
 Record uf : Type := {

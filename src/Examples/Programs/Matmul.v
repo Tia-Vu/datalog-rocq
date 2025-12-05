@@ -12,7 +12,6 @@ Open Scope string_scope.
 Import ATLDatalogParams.
 Module ATLDatalogDependencyGenerator := DependencyGenerator(ATLDatalogParams).
 Compute ATLDatalogDependencyGenerator.get_program_dependencies datalog_matmul.
-Print datalog_matmul.
 Definition empty_rule : rule :=
   datalog_rule:( [ ] :- [ ] ).
 
