@@ -1,4 +1,4 @@
-From Stdlib Require Import List Bool ZArith.Znat.
+From Stdlib Require Import List Bool ZArith.Znat Lia.
 From DatalogRocq Require Import Dataflow.
 Import ListNotations.
 
@@ -112,14 +112,22 @@ Section GridGraph.
     - intros Hnode.
       induction Hnode.
       + simpl. left. reflexivity.
-      + simpl. 
-        remember (all_nodes_h ds) as rest_nodes. admit.
-    - intros Hin.
-      induction dims.
-      + simpl in Hin. destruct Hin as [Heq | Hnil].
-        * subst. constructor.
-        * inversion Hnil.
-  Admitted.
+      + simpl. apply in_flat_map. 
+        exists coord. split.
+        * apply in_seq. simpl. lia.
+        * apply in_map. apply IHHnode.
+    - revert n.
+      induction dims as [| d ds IH]; intros n Hin; simpl in Hin.
+    + destruct Hin as [H | H]; [subst; constructor | inversion H].
+    + apply in_flat_map in Hin.
+      destruct Hin as [r [Hin_seq Hin_map]].
+      apply in_map_iff in Hin_map.
+      destruct Hin_map as [rest [Heq Hin_rest]].
+      subst n.
+      constructor.
+      * apply in_seq in Hin_seq. lia.
+      * apply IH. assumption.
+  Qed.
 
   Theorem all_nodes_correct : forall (n : Node),
     is_graph_node dims n <-> In n (all_nodes).
