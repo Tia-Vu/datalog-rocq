@@ -1,5 +1,6 @@
 From Stdlib Require Import List Bool ZArith.Znat Lia.
 From DatalogRocq Require Import Dataflow.
+From coqutil Require Import Datatypes.List.
 Import ListNotations.
 
 Section GridGraph.
@@ -9,31 +10,6 @@ Section GridGraph.
 
   Variable dims : Dimensions.
 
-  Fixpoint list_eqb {A : Type} (eqb : A -> A -> bool) (l1 l2 : list A) : bool :=
-    match l1, l2 with
-    | [], [] => true
-    | x :: xs, y :: ys => eqb x y && list_eqb eqb xs ys
-    | _, _ => false
-    end.
-
-  Lemma list_eqb_spec {A : Type}
-      (eqb : A -> A -> bool)
-      (eqb_spec : forall x y : A, BoolSpec (x = y) (x <> y) (eqb x y))
-      (l1 l2 : list A) : BoolSpec (l1 = l2) (l1 <> l2) (list_eqb eqb l1 l2).
-  Proof.
-    revert l2.
-    induction l1 as [|x xs IH]; intros [|y ys]; simpl.
-    - constructor. reflexivity.
-    - constructor. discriminate.
-    - constructor. discriminate.
-    - destruct (eqb_spec x y) as [Hxy | Hxy].
-      + subst y.
-        destruct (IH ys) as [H | H].
-        * subst ys. constructor. reflexivity.
-        * constructor. intros Heq. inversion Heq. contradiction.
-      + constructor. intros Heq. inversion Heq. contradiction.
-  Qed.
-
   Definition node_eqb (n1 n2 : Node) : bool := list_eqb Nat.eqb n1 n2.
 
   Lemma node_eqb_spec :
@@ -42,17 +18,7 @@ Section GridGraph.
   Proof.
     unfold node_eqb.
     apply list_eqb_spec.
-    intros x y. destruct (Nat.eqb_spec x y); constructor; congruence.
   Qed.
-
-  Definition check_node_in_bounds (n : Node) : bool :=
-    let fix check_dims coords dims :=
-        match coords, dims with
-        | [], [] => true
-        | c :: cs, d :: ds => (c <? d) && check_dims cs ds
-        | _, _ => false
-        end
-    in check_dims n dims.
 
   Inductive is_graph_node : Dimensions -> Node -> Prop :=
   | valid_nil : is_graph_node [] []
@@ -60,6 +26,46 @@ Section GridGraph.
       coord < d ->
       is_graph_node ds rest ->
       is_graph_node (d :: ds) (coord :: rest).
+
+  Fixpoint check_node_in_bounds_h (coords dims : list nat) : bool :=
+    match coords, dims with
+    | [], [] => true
+    | c :: cs, d :: ds => (c <? d) && check_node_in_bounds_h cs ds
+    | _, _ => false
+    end. 
+
+  Definition check_node_in_bounds (n : Node) : bool :=
+    check_node_in_bounds_h n dims.
+
+  Lemma check_node_in_bounds_h_correct :
+    forall n dims0,
+      is_graph_node dims0 n <-> check_node_in_bounds_h n dims0 = true.
+  Proof.
+    intros n. split.
+    - intros Hnode.
+      induction Hnode.
+      + simpl. reflexivity.
+      + simpl. apply andb_true_iff. split.
+        * apply Nat.ltb_lt. assumption.
+        * apply IHHnode.
+    - revert n.
+      induction dims0 as [| d ds IH]; intros n Hcheck.
+      + destruct n; [constructor | simpl in Hcheck; inversion Hcheck].
+      + destruct n as [| c cs].
+        * simpl in Hcheck. inversion Hcheck.
+        * simpl in Hcheck. apply andb_true_iff in Hcheck. destruct Hcheck as [Hc Hrest].
+          apply Nat.ltb_lt in Hc.
+          constructor; try assumption.
+          apply IH. assumption.
+  Qed.
+
+  Lemma check_node_in_bounds_correct :
+    forall n,
+      is_graph_node dims n <-> check_node_in_bounds n = true.
+  Proof.
+    intros n.
+    apply check_node_in_bounds_h_correct.
+  Qed.
 
   Definition abs (c1 c2 : nat) : nat := Nat.max (c1 - c2) (c2 - c1).
 
@@ -181,8 +187,4 @@ Section GridGraph.
   List.iter (fun n => if check_node_in_bounds n then f n else tt) (all_nodes dims).
  *)
 
-
 End GridGraph.
-
-
-
