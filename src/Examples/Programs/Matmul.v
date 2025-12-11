@@ -18,6 +18,7 @@ Definition empty_rule : rule :=
 Compute (length datalog_matmul).
 Compute ATLDatalogDependencyGenerator.get_rule_dependencies
         datalog_matmul
-        (nth 3 datalog_matmul empty_rule).
+        (nth 0 datalog_matmul empty_rule).
 Compute ATLDatalogDependencyGenerator.get_program_dependencies_flat datalog_matmul.
+Compute ATLDatalogDependencyGenerator.prune_empty_concl_rules datalog_matmul.
 Print datalog_matmul.

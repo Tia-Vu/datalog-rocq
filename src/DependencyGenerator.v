@@ -69,6 +69,27 @@ Fixpoint list_eqb {A : Type} (eqb : A -> A -> bool) (l1 l2 : list A) : bool :=
   | x :: xs, y :: ys => eqb x y && list_eqb eqb xs ys
   | _, _ => false
   end.
+  
+Definition fact_eqb (f1 f2 : fact) : bool :=
+  rel_eqb (fact_R f1) (fact_R f2) &&
+  list_eqb expr_compatible (fact_args f1) (fact_args f2).
+
+Definition rule_eqb (r1 r2 : rule) : bool :=
+  list_eqb fact_eqb (Datalog.rule_hyps r1) (Datalog.rule_hyps r2) &&
+  list_eqb fact_eqb (Datalog.rule_concls r1) (Datalog.rule_concls r2) &&
+  match Datalog.rule_agg r1, Datalog.rule_agg r2 with
+  | None, None => true
+  | Some (a1, ae1), Some (a2, ae2) =>
+      var_eqb a1 a2 &&
+      list_eqb fact_eqb (Datalog.agg_hyps ae1) (Datalog.agg_hyps ae2)
+  | _, _ => false
+  end.
+
+
+(* Pruning *)
+
+Definition prune_empty_concl_rules (p : program) : program :=
+  filter (fun r => negb (list_eqb fact_eqb (Datalog.rule_concls r) [])) p.
 
 (* Collect *)
 Fixpoint collect_vars (e : expr) : list var :=
@@ -179,21 +200,6 @@ Definition get_rules_dependent_on (p : program) (r : rule) : program :=
 
 Definition get_program_dependencies (p : program) : list (rule * list rule) :=
   map (fun r => (r, get_rule_dependencies p r)) p.
-
-Definition fact_eqb (f1 f2 : fact) : bool :=
-  rel_eqb (fact_R f1) (fact_R f2) &&
-  list_eqb expr_compatible (fact_args f1) (fact_args f2).
-
-Definition rule_eqb (r1 r2 : rule) : bool :=
-  list_eqb fact_eqb (Datalog.rule_hyps r1) (Datalog.rule_hyps r2) &&
-  list_eqb fact_eqb (Datalog.rule_concls r1) (Datalog.rule_concls r2) &&
-  match Datalog.rule_agg r1, Datalog.rule_agg r2 with
-  | None, None => true
-  | Some (a1, ae1), Some (a2, ae2) =>
-      var_eqb a1 a2 &&
-      list_eqb fact_eqb (Datalog.agg_hyps ae1) (Datalog.agg_hyps ae2)
-  | _, _ => false
-  end.
 
 Fixpoint lookup_rule_number (r : rule) (p : program) (n : nat) : option nat :=
   match p with
