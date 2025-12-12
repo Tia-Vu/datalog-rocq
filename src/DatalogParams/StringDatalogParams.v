@@ -18,11 +18,13 @@ Definition rule := Datalog.rule rel var fn aggregator.
 Definition program := list rule.
 Definition expr := Datalog.expr var fn.
 Definition fact := Datalog.fact rel var fn.
+Definition agg_expr := Datalog.agg_expr rel var fn aggregator.
 
 (* Equality *)
 Definition var_eqb : var -> var -> bool := String.eqb.
 Definition fn_eqb : fn -> fn -> bool := String.eqb.
 Definition rel_eqb : rel -> rel -> bool := String.eqb.
+Definition aggregator_eqb (_ _ : aggregator) : bool := true.
 
 Lemma var_eqb_spec : forall x y, BoolSpec (x = y) (x <> y) (var_eqb x y).
 Proof. apply String.eqb_spec. Qed.
@@ -33,11 +35,13 @@ Proof. apply String.eqb_spec. Qed.
 Lemma rel_eqb_spec : forall x y, BoolSpec (x = y) (x <> y) (rel_eqb x y).
 Proof. apply String.eqb_spec. Qed.
 
+Lemma aggregator_eqb_spec : forall x y, BoolSpec (x = y) (x <> y) (aggregator_eqb x y).
+Proof. constructor; destruct x, y; auto. Qed.
+
 Fixpoint expr_compatible (e1 e2 : expr) : bool :=
   match e1, e2 with
   | Datalog.var_expr _, Datalog.var_expr _ =>
       true
-      (* XXX: need to handle alpha equivalence here *)
   | Datalog.var_expr _, Datalog.fun_expr _ [] =>
       true
   | Datalog.fun_expr _ [], Datalog.var_expr _ =>
