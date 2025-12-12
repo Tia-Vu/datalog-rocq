@@ -179,16 +179,21 @@ Lemma rule_agg_eqb_spec :
 Proof.
 Admitted.
 
+Definition rule_set_hyps_eqb
+  (rh1 rh2 : list (expr * expr)) : bool :=
+  list_eqb (pair_eqb expr_eqb expr_eqb) rh1 rh2.
+
+Lemma rule_set_hyps_eqb_spec :
+  forall rh1 rh2,
+    BoolSpec (rh1 = rh2) (rh1 <> rh2) (rule_set_hyps_eqb rh1 rh2).
+Proof.
+Admitted.
+
 Definition rule_eqb (r1 r2 : rule) : bool :=
   list_eqb fact_eqb (Datalog.rule_hyps r1) (Datalog.rule_hyps r2) &&
   list_eqb fact_eqb (Datalog.rule_concls r1) (Datalog.rule_concls r2) &&
-  match Datalog.rule_agg r1, Datalog.rule_agg r2 with
-  | None, None => true
-  | Some (a1, ae1), Some (a2, ae2) =>
-      var_eqb a1 a2 &&
-      list_eqb fact_eqb (Datalog.agg_hyps ae1) (Datalog.agg_hyps ae2)
-  | _, _ => false
-  end.
+  rule_agg_eqb (Datalog.rule_agg r1) (Datalog.rule_agg r2) &&
+  rule_set_hyps_eqb (Datalog.rule_set_hyps r1) (Datalog.rule_set_hyps r2).
 
 Definition rule_eqb_spec :
   forall r1 r2,
