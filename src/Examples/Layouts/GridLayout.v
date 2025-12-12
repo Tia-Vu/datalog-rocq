@@ -52,7 +52,6 @@ Module GridLayout (Params : DatalogParams).
     - contradiction.
   Qed.
 
-
 Theorem good_layout :
   check_layout = true ->
   Dataflow.good_layout layout grid_graph.(nodes) program.
@@ -93,3 +92,4 @@ Proof.
         * discriminate H_r_eq.
 Qed.
 
+End GridLayout.
