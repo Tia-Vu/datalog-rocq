@@ -1,19 +1,14 @@
 From Datalog Require Import Datalog.
-From DatalogRocq Require Import DependencyGenerator.
-From Stdlib Require Import List.
-From Stdlib Require Import String.
-From Stdlib Require Import Bool.Bool.
+From Stdlib Require Import List String Bool.Bool.
 Import ListNotations.
 Open Scope bool_scope.
 Open Scope string_scope.
-
-Module StringDatalogParams.
 
 Definition rel := string.
 Definition var := string.
 Definition fn := string.
 Definition aggregator := unit.
-Definition T := string.  (* semantic domain for interpretation *)
+Definition T := string.
 Definition rule := Datalog.rule rel var fn aggregator.
 Definition program := list rule.
 Definition expr := Datalog.expr var fn.
@@ -57,5 +52,3 @@ Fixpoint expr_compatible (e1 e2 : expr) : bool :=
          end) args1 args2
   | _, _ => false
   end.
-
-End StringDatalogParams.

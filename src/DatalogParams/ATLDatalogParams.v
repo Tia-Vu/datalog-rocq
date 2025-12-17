@@ -1,18 +1,15 @@
-From Datalog Require Import Datalog.
-From DatalogRocq Require Import DependencyGenerator EqbSpec.
+From Datalog Require Import Datalog ATLToDatalog.
+From DatalogRocq Require Import EqbSpec.
 From Stdlib Require Import List String Bool ZArith.
-From Datalog Require Import ATLToDatalog.
 Import ListNotations.
 Open Scope bool_scope.
 Open Scope string_scope.
-
-Module ATLDatalogParams.
 
 Definition rel := (ATLToDatalog.rel * bool)%type.
 Definition var := (string + nat)%type.
 Definition fn := ATLToDatalog.fn.
 Definition aggregator := ATLToDatalog.aggregator.
-Definition T := string.  (* semantic domain for interpretation *)
+Definition T := ATLToDatalog.obj.
 Definition rule := Datalog.rule rel var fn aggregator.
 Definition program := list rule.
 Definition expr := Datalog.expr var fn.
@@ -144,5 +141,3 @@ Definition expr_compatible (e1 e2 : expr) : bool :=
   | Datalog.fun_expr f1 _, Datalog.fun_expr f2 _ => true (* For now we don't think about function equality *)
   | _, _ => false
   end.
-
-End ATLDatalogParams.
