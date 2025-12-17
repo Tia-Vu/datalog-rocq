@@ -3,24 +3,23 @@
 
 From Datalog Require Import Datalog.
 From Stdlib Require Import List String Bool Lia.
-From coqutil Require Import Datatypes.List.
+From coqutil Require Import Datatypes.List Map.Interface.
 From DatalogRocq Require Import EqbSpec.
 
 Import ListNotations.
 Open Scope bool_scope.
 Open Scope string_scope.
 
-Module Type DatalogParams.
+Section DependencyGenerator.
 
-Parameter rel var fn aggregator T : Type.
-Parameter var_eqb : var -> var -> bool.
-Parameter var_eqb_spec :  forall x0 y0 : var, BoolSpec (x0 = y0) (x0 <> y0) (var_eqb x0 y0).
-Parameter rel_eqb : rel -> rel -> bool.
-Parameter rel_eqb_spec : forall x0 y0 : rel, BoolSpec (x0 = y0) (x0 <> y0) (rel_eqb x0 y0).
-Parameter fn_eqb : fn -> fn -> bool.
-Parameter fn_eqb_spec : forall x0 y0 : fn, BoolSpec (x0 = y0) (x0 <> y0) (fn_eqb x0 y0).
-Parameter aggregator_eqb : aggregator -> aggregator -> bool.
-Parameter aggregator_eqb_spec : forall x0 y0 : aggregator, BoolSpec (x0 = y0) (x0 <> y0) (aggregator_eqb x0 y0).
+Context {rel var fn aggregator T : Type}.
+Context `{sig : signature fn aggregator T} `{query_sig : query_signature rel}.
+Context {context : map.map var T} {context_ok : map.ok context}.
+Context {var_eqb : var -> var -> bool} {var_eqb_spec :  forall x0 y0 : var, BoolSpec (x0 = y0) (x0 <> y0) (var_eqb x0 y0)}.
+Context {rel_eqb : rel -> rel -> bool} {rel_eqb_spec : forall x0 y0 : rel, BoolSpec (x0 = y0) (x0 <> y0) (rel_eqb x0 y0)}.
+Context {fn_eqb : fn -> fn -> bool} {fn_eqb_spec : forall x0 y0 : fn, BoolSpec (x0 = y0) (x0 <> y0) (fn_eqb x0 y0)}.
+Context {aggregator_eqb : aggregator -> aggregator -> bool}
+        {aggregator_eqb_spec : forall x0 y0 : aggregator, BoolSpec (x0 = y0) (x0 <> y0) (aggregator_eqb x0 y0)}.
 
 Definition expr := Datalog.expr var fn.
 Definition fact := Datalog.fact rel var fn.
@@ -28,13 +27,7 @@ Definition rule := Datalog.rule rel var fn aggregator.
 Definition agg_expr := Datalog.agg_expr rel var fn aggregator.
 Definition program := list rule.
 
-Parameter expr_compatible : expr -> expr -> bool.
-
-End DatalogParams.
-
-Module DependencyGenerator (Params : DatalogParams).
-
-Import Params.
+Context {expr_compatible : expr -> expr -> bool}.
 
 (* Basic Utilities *)
 
