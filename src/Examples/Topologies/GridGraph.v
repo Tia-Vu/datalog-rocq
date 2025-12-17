@@ -87,6 +87,79 @@ Section GridGraph.
                  manhattan_distance 1 u v ->
                  is_graph_edge dims u v.
 
+  Fixpoint is_mth_neighbor (n1 n2 : Node) (m : nat) : bool :=
+    match n1, n2 with 
+    | [], [] => if m =? 0 then true else false
+    | c :: cs, c' :: cs' => 
+      if m <? (abs c c') then false 
+      else is_mth_neighbor cs cs' (m - (abs c c'))
+    | _, _ => false
+    end.
+
+  Definition is_neighbor (n1 n2 : Node) : bool :=
+   check_node_in_bounds n1 &&
+   check_node_in_bounds n2 &&
+   is_mth_neighbor n1 n2 1.
+
+
+  Lemma abs_same : forall n, abs n n = 0.
+  Proof. 
+    induction n; auto. 
+  Qed.
+
+  Lemma is_mth_neighbor_self : forall n,
+    is_mth_neighbor n n 0 = true.
+  Proof.
+    induction n; auto.
+    simpl. rewrite abs_same. simpl.
+    apply IHn.
+  Qed.
+
+  Lemma is_mth_neighbor_is_manhattan_distance : forall n1 n2 m, 
+    is_mth_neighbor n1 n2 m = true <-> manhattan_distance m n1 n2.
+  Proof.
+    split.
+    - revert n2. revert m. induction n1; intros m n2 H.
+      + destruct n2; simpl in H.
+        * destruct m; try discriminate. econstructor.
+        * destruct m; try discriminate.
+      + destruct n2.
+        * simpl in H. discriminate.
+        * simpl in H. destruct (m <? abs a n) eqn:Hcomp; try discriminate.
+          assert (abs a n <= m) by (apply Nat.ltb_ge; exact Hcomp).
+          replace m with ((m - (abs a n)) + (abs a n)) by lia.
+          econstructor; eauto.
+    - induction 1.
+      + apply is_mth_neighbor_self.
+      + simpl. subst. assert (prev_diff + abs c1 c2 <? abs c1 c2 = false).
+        { apply Nat.ltb_ge. lia. }
+        rewrite H0. rewrite Nat.add_sub; try lia.
+        apply IHmanhattan_distance.
+  Qed.
+
+  Lemma is_neighbor_correct : forall n1 n2,
+    is_neighbor n1 n2 = true <-> is_graph_edge dims n1 n2.
+  Proof.
+    intros n1 n2. split.
+    - intros Hneighbor.
+      unfold is_neighbor in Hneighbor.
+      apply andb_true_iff in Hneighbor.
+      destruct Hneighbor as [Hrest Hmth].
+      apply andb_true_iff in Hrest.
+      destruct Hrest as [Hn1 Hn2].
+      apply check_node_in_bounds_correct in Hn1.
+      apply check_node_in_bounds_correct in Hn2.
+      apply is_mth_neighbor_is_manhattan_distance in Hmth.
+      econstructor; eauto.
+    - intros Hedge.
+      unfold is_neighbor.
+      apply andb_true_iff. split.
+      + apply andb_true_iff. split.
+        * apply check_node_in_bounds_correct. inversion Hedge; assumption.
+        * apply check_node_in_bounds_correct. inversion Hedge; assumption.
+      + apply is_mth_neighbor_is_manhattan_distance. inversion Hedge; assumption.
+  Qed.
+
   (* The actual graph *)
   Definition GridGraph : Dataflow.Graph :=
     {|
@@ -182,6 +255,27 @@ Section GridGraph.
         * intros. rewrite add_dimension_length. apply IHdims0.
           intros. apply H. right. assumption.
   Qed.
+
+  (* Fixpoint all_edges_h (dims : list nat) : list (Node * Node) :=
+    match dims with
+    | [] => []
+    | d :: ds =>
+        let rest_nodes := all_nodes_h ds in
+        let lower_dim_edges := all_edges_h ds in
+        let edges_in_current_dim :=
+          flat_map (fun c =>
+            flat_map (fun n =>
+              match n with
+              | [] => []
+              | _ :: _ =>
+                  let u := c :: n in
+                  let v := (c + 1) :: n in
+                  if (c + 1 <? d)
+                  then [(u, v); (v, u)]
+                  else []
+              end) rest_nodes) (seq 0 d) in
+        edges_in_current_dim ++ lower_dim_edges
+    end. *)
 
   (* Definition visit_graph_nodes (f : Node -> unit) : unit :=
   List.iter (fun n => if check_node_in_bounds n then f n else tt) (all_nodes dims).
