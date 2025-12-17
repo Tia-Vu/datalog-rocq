@@ -3,7 +3,7 @@
 
 From Datalog Require Import Datalog.
 From Stdlib Require Import List String Bool Lia.
-From coqutil Require Import Datatypes.List Map.Interface.
+From coqutil Require Import Datatypes.List Map.Interface Datatypes.Option.
 From DatalogRocq Require Import EqbSpec.
 
 Import ListNotations.
@@ -67,15 +67,11 @@ Fixpoint list_eqb_fuel
   (f : expr -> expr -> nat -> bool)
   (l1 l2 : list expr)
   (fuel : nat) : bool :=
-  match fuel with
-  | 0 => false
-  | S fuel' =>
-      match l1, l2 with
-      | [], [] => true
-      | x1 :: xs1, x2 :: xs2 =>
-          f x1 x2 fuel' && list_eqb_fuel f xs1 xs2 fuel
-      | _, _ => false
-      end
+    match l1, l2 with
+    | [], [] => true
+    | x1 :: xs1, x2 :: xs2 =>
+        f x1 x2 fuel && list_eqb_fuel f xs1 xs2 fuel
+    | _, _ => false
   end.
 
 Fixpoint expr_eqb_fuel (e1 e2 : expr) (fuel : nat) : bool :=
@@ -92,24 +88,40 @@ Fixpoint expr_eqb_fuel (e1 e2 : expr) (fuel : nat) : bool :=
   end.
 
 Definition expr_eqb (e1 e2 : expr) : bool :=
-  expr_eqb_fuel e1 e2 (Datalog.expr_size e1 + Datalog.expr_size e2).
+  expr_eqb_fuel e1 e2 (Nat.max (Datalog.expr_size e1) (Datalog.expr_size e2)).
+
+Lemma list_eqb_fuel_spec :
+  forall fuel (f : expr -> expr -> nat -> bool),
+    (forall e1 e2,
+        fuel >= Nat.max (Datalog.expr_size e1) (Datalog.expr_size e2) ->
+        BoolSpec (e1 = e2) (e1 <> e2) (f e1 e2 fuel)) ->
+    forall l1 l2,
+      fuel >= Nat.max (fold_right Nat.max 0 (map Datalog.expr_size l1)) (fold_right Nat.max 0 (map Datalog.expr_size l2)) ->
+      BoolSpec (l1 = l2) (l1 <> l2) (list_eqb_fuel f l1 l2 fuel).
+Proof.
+  intros fuel f Hf.
+  induction l1 as [|x1 xs1 IH]; intros l2 Hbd; destruct l2 as [|x2 xs2]; simpl in *; try (constructor; congruence). 
+  assert (Hhd : fuel >= Nat.max (expr_size x1) (expr_size x2)) by lia.
+  assert (Htl : fuel >= Nat.max (fold_right Nat.max 0 (map Datalog.expr_size xs1)) (fold_right Nat.max 0 (map Datalog.expr_size xs2))) by lia.
+  destruct (Hf x1 x2 Hhd); subst; simpl; try (constructor; congruence).
+  destruct (IH xs2 Htl); try (constructor; congruence).
+Qed.
 
 Lemma expr_eqb_fuel_spec :
   forall fuel e1 e2,
-    fuel >= Datalog.expr_size e1 + Datalog.expr_size e2 ->
+    fuel >= Nat.max (Datalog.expr_size e1) (Datalog.expr_size e2) ->
     BoolSpec (e1 = e2) (e1 <> e2) (expr_eqb_fuel e1 e2 fuel).
 Proof.
- induction fuel as [|fuel IH]; intros e1 e2 Hfuel; unfold expr_eqb_fuel; simpl in *.
- - inversion Hfuel. destruct e1; destruct e2; simpl in *; lia.
- - destruct e1; destruct e2; simpl in *.
-   + destruct (var_eqb_spec v v0) as [Heq | Hneq].
-     * subst. constructor. reflexivity.
-     * constructor. congruence.
-   + constructor. discriminate.
-   + constructor. discriminate.
-   + destruct (fn_eqb_spec f f0) as [Hf_eq | Hf_neq]; subst.
-     *  
-Admitted.
+  induction fuel as [|fuel IH]; intros e1 e2 Hfuel; simpl in *.
+  - destruct e1; destruct e2; simpl in *; lia.
+  - destruct e1; destruct e2; simpl in *; try (constructor; congruence).
+    + destruct (var_eqb_spec v v0); try (constructor; congruence).
+    + destruct (fn_eqb_spec f f0); subst; try (constructor; congruence).
+      assert (Hargs : fuel >= Nat.max (fold_right Nat.max 0 (map Datalog.expr_size args))
+                                      (fold_right Nat.max 0 (map Datalog.expr_size args0))) by lia.
+      destruct (list_eqb_fuel_spec fuel expr_eqb_fuel IH args args0 Hargs); try (constructor; congruence).
+Qed.
+
 
 Lemma expr_eqb_spec :
   forall e1 e2,
@@ -170,6 +182,12 @@ Lemma rule_agg_eqb_spec :
   forall ra1 ra2,
     BoolSpec (ra1 = ra2) (ra1 <> ra2) (rule_agg_eqb ra1 ra2).
 Proof.
+  destruct ra1 as [[a1 ae1]|], ra2 as [[a2 ae2]|]; simpl; try constructor; try congruence.
+  - destruct (var_eqb_spec a1 a2); subst.
+    + destruct (@list_eqb_spec (Datalog.fact rel var fn) fact_eqb fact_eqb_spec (Datalog.agg_hyps ae1) (Datalog.agg_hyps ae2)); subst.
+      * rewrite H. simpl. admit.
+      * admit.
+    + constructor. congruence.
 Admitted.
 
 Definition rule_set_hyps_eqb
