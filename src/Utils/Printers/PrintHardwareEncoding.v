@@ -14,9 +14,7 @@ Section PrintHardwareEncoding.
 Context {node_id : Type}.
 Context `{JEncode node_id}.
 
-Notation destination := (@DistributedHardwareProgram.destination node_id).
-
-Context {forwarding_table : map.map rel_id (list destination)}.
+Context {forwarding_table : map.map (rel_id * node_id) (list node_id)}.
 
 Notation node_info := (@DistributedHardwareProgram.node_info node_id forwarding_table).
 
@@ -38,12 +36,6 @@ Notation node_info := (@DistributedHardwareProgram.node_info node_id forwarding_
   fun hr =>
     JSON__Object [("hhyps", encode hr.(hhyps));
                 ("hconcls", encode hr.(hconcls))].
-
-#[global] Instance JEncode__destination : JEncode destination := fun d =>
-  match d with
-  | DestEdge e => JSON__Object [("DestEdge", encode e)]
-  | DestTrie t => JSON__Object [("DestTrie", encode t)]
-  end.
 
 #[global] Instance JEncode_forwarding_table : JEncode forwarding_table :=
   fun m => encode (map.fold (fun acc k v => (k, v) :: acc) [] m).

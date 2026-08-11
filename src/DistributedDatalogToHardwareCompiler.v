@@ -2,6 +2,7 @@ From Stdlib Require Import String List Bool ZArith.
 From coqutil Require Import Datatypes.List Datatypes.ListSet Map.Interface Map.Properties Result Eqb.
 From Datalog Require Import Datalog Interpreter List Map Default.
 From DatalogRocq Require Import DependencyGenerator SortedListNat ComputableGraph.
+From GraphSearch Require Import GraphInterface Trees Examples.
 From DatalogRocq Require Export HardwareProgram DistributedHardwareProgram.
 
 Open Scope result_monad_scope.
@@ -18,10 +19,8 @@ Context {node_id : Type} {node_id_eqb : Eqb node_id}.
 
 #[local] Existing Instance rel_id.
 
-Notation destination := (@DistributedHardwareProgram.destination node_id).
-
 Context {node_id_set : map.map node_id unit}.
-Context {forwarding_table : map.map rel_id (list destination)}.
+Context {forwarding_table : map.map (rel_id * node_id) (list node_id)}.
 Context {layout_map : map.map node_id lowered_program}.
 Context {fact_locations : map.map rel_id (list node_id)}.
 
@@ -37,17 +36,15 @@ Record node_context := {
 (*---- var_graph as ComputableGraph over var ----*)
 Context {var_node_set : map.map var unit}.
 Context {var_node_set_ok : map.ok var_node_set}.
-Context {var_edge_set : map.map var var_node_set}.
-Context {var_edge_set_ok : map.ok var_edge_set}.
+Context {var_graph_impl : graph.graph var} {var_graph_impl_ok : graph.ok var_graph_impl}.
 
-Definition var_graph := @ComputableGraph var var_node_set var_edge_set.
+Definition var_graph := @ComputableGraph var var_node_set var_graph_impl.
 
 (*---- node_graph as ComputableGraph over node_id ----*)
 Context {node_id_set_ok : map.ok node_id_set}.
-Context {node_id_edge_set : map.map node_id node_id_set}.
-Context {node_id_edge_set_ok : map.ok node_id_edge_set}.
+Context {node_id_graph : graph.graph node_id} {node_id_graph_ok : graph.ok node_id_graph}.
 
-Definition node_graph := @ComputableGraph node_id node_id_set node_id_edge_set.
+Definition node_graph := @ComputableGraph node_id node_id_set node_id_graph.
 
 (*----The program a layout represents, and a checker that a layout distributes a given program----*)
 
@@ -79,19 +76,17 @@ Definition hyp_var_order (hyps : list lowered_fact) : list var :=
 
 (*----Variable ordering----*)
 
-Definition vg_neighbors (g : var_graph) (v : var) : var_node_set :=
-  get_or_default g.(edges) v.
+Definition vg_neighbors (g : var_graph) (v : var) : list var :=
+  graph.edges g.(edges) v.
 
 Fixpoint add_arg_edges (arg : lowered_expr) (g : var_graph) (clause_vars : var_node_set) : var_graph :=
   match arg with
   | var_expr v =>
-    let new_neighbors := map.putmany (vg_neighbors g v) clause_vars in
     let g' := {| nodes := map.put g.(nodes) v tt;
-                 edges := map.put g.(edges) v new_neighbors |} in
+                 edges := graph.put_edges g.(edges) v (map.keys clause_vars) |} in
     (* Add reverse edges: for each u in clause_vars, add edge u -> v *)
     map.fold (fun acc u _ =>
-      {| nodes := acc.(nodes);
-         edges := map.put acc.(edges) u (map.put (vg_neighbors acc u) v tt) |})
+      {| nodes := acc.(nodes); edges := graph.put acc.(edges) u v |})
       g' clause_vars
   | fun_expr _ args =>
     fold_left (fun acc arg => add_arg_edges arg acc clause_vars) args g
@@ -113,20 +108,20 @@ Definition add_hyp_edges (hyp : lowered_fact) (g : var_graph) : var_graph :=
   add_args_edges hyp.(clause_args) g map.empty.
 
 Definition empty_var_graph : var_graph :=
-  {| nodes := map.empty; edges := map.empty |}.
+  {| nodes := map.empty; edges := graph.empty |}.
 
 Definition create_dependency_graph (hyps : list lowered_fact) : var_graph :=
   fold_left (fun acc hyp => add_hyp_edges hyp acc) hyps empty_var_graph.
 
 Definition compute_degree (g : var_graph) (v : var) : nat :=
-  map.fold (fun acc _ _ => S acc) 0 (vg_neighbors g v).
+  length (vg_neighbors g v).
 
 Definition compute_degree_to_visited_set (g : var_graph) (visited : var_node_set) (v : var) : nat :=
-  map.fold (fun acc neighbor _ =>
+  fold_left (fun acc neighbor =>
     match map.get visited neighbor with
     | Some _ => S acc
     | None => acc
-    end) 0 (vg_neighbors g v).
+    end) (vg_neighbors g v) 0.
 
 Definition compute_max_degree_var_to_visited_set (g : var_graph) (visited : var_node_set)
     : option (var * nat) :=
@@ -178,11 +173,10 @@ Definition compute_max_degree_var_ordered
 
 Definition remove_edge_from_graph (g : var_graph) (v1 v2 : var) : var_graph :=
   {| nodes := g.(nodes);
-     edges := map.put (map.put g.(edges) v1 (map.remove (vg_neighbors g v1) v2))
-                                           v2 (map.remove (vg_neighbors g v2) v1) |}.
+     edges := graph.remove (graph.remove g.(edges) v1 v2) v2 v1 |}.
 
 Definition remove_edges_touching_var (g : var_graph) (v : var) : var_graph :=
-  map.fold (fun acc neighbor _ => remove_edge_from_graph acc v neighbor) g (vg_neighbors g v).
+  fold_left (fun acc neighbor => remove_edge_from_graph acc v neighbor) (vg_neighbors g v) g.
 
 Record ordering_context := {
   dep_graph : var_graph;
@@ -372,37 +366,6 @@ Definition compile_rule (rule : lowered_rule)
 
 Context {node_ftable_map : map.map node_id forwarding_table}.
 
-Definition add_trie_dest_to_forwarding_table (node : node_id) (rel : rel_id)
-    (ftables : node_ftable_map) (ninfos : list node_info) : node_ftable_map :=
-  let ft := get_or_default ftables node in
-  let matching_tries :=
-    match find (fun n => eqb n.(nid) node) ninfos with
-    | None => []
-    | Some ninfo => filter (fun t => Nat.eqb t.(trel) rel) ninfo.(ntries)
-    end in
-  let existing := get_or_default ft rel in
-  let updated_ft :=
-    map.put ft rel
-      (list_union eqb (List.map (fun t => DestTrie t.(tid)) matching_tries) existing) in
-  map.put ftables node updated_ft.
-
-(* TODO later maybe do edges by which node it connects to instead of direction? *)
-Fixpoint add_path_to_forwarding_table (ninfos : list node_info) (rel : rel_id)
-    (ftables : node_ftable_map) (path : list node_id) : node_ftable_map :=
-  match path with
-  | [] => ftables
-  | [node] => add_trie_dest_to_forwarding_table node rel ftables ninfos
-  | node :: ((next :: _) as rest) =>
-    let ft := get_or_default ftables node in
-    let existing := get_or_default ft rel in
-    let ft' := map.put ft rel (list_union eqb [DestEdge next] existing) in
-    add_path_to_forwarding_table ninfos rel (map.put ftables node ft') rest
-  end.
-
-Definition add_paths_to_forwarding_table (rel : rel_id) (paths : list (list node_id))
-    (ftables : node_ftable_map) (ninfos : list node_info) : node_ftable_map :=
-  fold_left (add_path_to_forwarding_table ninfos rel) paths ftables.
-
 Context {rels_at_node : map.map node_id (list rel_id)}.
 
 Definition get_internal_producers_of (layout : layout_map) :=
@@ -419,68 +382,56 @@ Definition get_internal_consumers_of (layout : layout_map) :=
   (*maps rel R to set of nodes which may (internally) consume R*)
   invert internally_consumed_at_node.
 
-Definition update_forwarding_table_for_rel
-  (g : node_graph) lfc lfp (ninfos : list node_info)
-  (ftables : node_ftable_map) (rel : rel_id) : node_ftable_map :=
-  let producers := get_or_default lfp rel in
-  let consumers := get_or_default lfc rel in
-  let paths :=
-    flat_map (fun '(producer, consumer) =>
-                match get_path g producer consumer with
-                | None => []
-                | Some path => [path]
-                end)
-      (list_prod producers consumers) in
-  add_paths_to_forwarding_table rel paths ftables ninfos.
-
-(*note: this is suboptimal.
-  first: we add a path from each producer to every external consumer, where it would suffice to add a path from each producer to one external consumer.
-  this would not be too hard to fix.
-  second: we are making no effort to do any load-balancing etc.
- *)
-Definition generate_forwarding_table (g : node_graph) (ninfos : list node_info)
-  (all_producers_of all_consumers_of : fact_locations)
-  : node_ftable_map :=
-  fold_left (update_forwarding_table_for_rel g all_consumers_of all_producers_of ninfos) (map.keys all_consumers_of) map.empty.
-
-Definition path_exists (g : node_graph) (source dest : node_id) :=
-  is_Some (get_path g source dest).
+(* the routing graph for [R] tagged [original_source]: only searched, so no node set. *)
+Definition graph_of_ftables_at (ftables : node_ftable_map) (R : rel_id) (original_source : node_id)
+  : node_id_graph :=
+  map.fold (fun g n ft => graph.put_edges g n (get_or_default ft (R, original_source)))
+    graph.empty ftables.
 
 (*all rule_producers(R) -> all internal rule_consumers(R)*)
-Definition all_rules_fed_for_relation (g : node_graph)
+(*also checks that internal rule_consumers only receive a given message once---
+ by checking that we have trees*)
+(*note that the treeness is currently unnecessary for the correctness proof,
+  but it will be necessary once we incorporate aggregation*)
+Definition all_rules_fed_for_relation (gof : node_id -> node_id_graph)
   (all_producers : list node_id) (internal_consumers : list node_id) :=
-  forallb (fun '(p, ic) => path_exists g p ic) (list_prod all_producers internal_consumers).
+  forallb (fun p =>
+             check_locally_tree (gof p) p &&
+             inclb internal_consumers (get_reachable_nodes (gof p) p))
+    all_producers.
 
-Definition all_rules_fed (g : node_graph)
+Definition all_rules_fed ftables
   (all_producers_of : fact_locations) (internal_consumers_of : fact_locations) :=
   map.forallb (fun R internal_consumers =>
                  let all_producers := get_or_default all_producers_of R in
-                 all_rules_fed_for_relation g all_producers internal_consumers)
+                 all_rules_fed_for_relation (graph_of_ftables_at ftables R) all_producers internal_consumers)
     internal_consumers_of.
 
 (*all rule_producers(R) -> some external rule_consumer(R)*)
-Definition producers_go_out_for_relation (g : node_graph)
+Definition producers_go_out_for_relation (gof : node_id -> node_id_graph)
   (all_producers : list node_id) (external_consumers : list node_id) :=
   forallb
-    (fun producer => existsb (path_exists g producer) external_consumers)
+    (fun producer =>
+       let reachable := get_reachable_nodes (gof producer) producer in
+       existsb (fun ec => existsb (eqb ec) reachable) external_consumers)
     all_producers.
 
 (*assumption: the rels that we're supposed to output are precisely the rels that we have some place to output---i.e., the rels that are keys of external_consumers.*)
-Definition producers_go_out (g : node_graph)
+Definition producers_go_out ftables
   (all_producers_of : fact_locations) (external_consumers_of : fact_locations) :=
   map.forallb (fun R external_consumers =>
                  let all_producers := get_or_default all_producers_of R in
-                 producers_go_out_for_relation g all_producers external_consumers)
+                 producers_go_out_for_relation (graph_of_ftables_at ftables R) all_producers external_consumers)
     external_consumers_of.
 
-Definition check_layout_routable (g : node_graph)
+Definition check_layout_routable ftables
   (external_consumers_of internal_consumers_of all_producers_of : fact_locations) : result unit :=
-  (if all_rules_fed g all_producers_of internal_consumers_of
+  (if all_rules_fed ftables all_producers_of internal_consumers_of
    then Success tt
-   else error:("compile: bad layout---some producer cannot reach some internal consumer")) ;;
-  (if producers_go_out g all_producers_of external_consumers_of
+   else error:("compile: bad layout/forwarding table---some producer cannot reach some internal consumer")) ;;
+  (if producers_go_out ftables all_producers_of external_consumers_of
    then Success tt
-   else error:("compile: bad layout---some producer of an output relation cannot reach any external sink")).
+   else error:("compile: bad layout/forwarding table---some producer of an output relation cannot reach any external sink")).
 
 (*----Final Compilation----*)
 
@@ -525,8 +476,18 @@ Definition attach_forwarding_tables (ninfos : list node_info)
 Definition layout_in_graphb (g : node_graph) (llayout : layout_map) : bool :=
   map.forallb (fun n _ => check_node_valid n (ComputableGraph.nodes g)) llayout.
 
+Definition hops_in_graphb (g : node_graph) (n : node_id) (hops : list node_id) :=
+  forallb (fun m => check_edge_exists n m (ComputableGraph.edges g)) hops.
+
+Definition ftable_in_graphb (g : node_graph) (n : node_id) (ft : forwarding_table) :=
+  map.forallb (fun _ hops => hops_in_graphb g n hops) ft.
+
+Definition ftables_in_graphb (g : node_graph) (ftables : node_ftable_map) : bool :=
+  map.forallb (ftable_in_graphb g) ftables.
+
 Definition compile (layout : layout_map)
   (external_producers_of external_consumers_of : fact_locations)
+  (ftables : node_ftable_map)
   (g : node_graph) : result (list node_info) :=
   (if check_graph_valid g
    then Success tt
@@ -534,17 +495,33 @@ Definition compile (layout : layout_map)
   (if layout_in_graphb g layout
    then Success tt
    else error:("compile: a node the layout assigns rules to is not in the topology graph")) ;;
+  (if ftables_in_graphb g ftables
+   then Success tt
+   else error:("compile: the forwarding table routes over a link the topology graph does not have")) ;;
   let internal_consumers_of := get_internal_consumers_of layout in
   let internal_producers_of := get_internal_producers_of layout in
   let all_producers_of := union_with (list_union eqb) internal_producers_of external_producers_of in
   let all_consumers_of := union_with (list_union eqb) internal_consumers_of external_consumers_of in
-  check_layout_routable g external_consumers_of internal_consumers_of all_producers_of ;;
+  check_layout_routable ftables external_consumers_of internal_consumers_of all_producers_of ;;
   ninfos <- compile_all_nodes layout ;;
-  let ftables := generate_forwarding_table g ninfos all_producers_of all_consumers_of in
   Success (attach_forwarding_tables ninfos ftables).
+
+Definition dumb_ftables_at (g : node_id_graph) (R : rel_id) (orig_src : node_id) : node_ftable_map :=
+  let g := graph_of (tree_of g orig_src) in
+  map.of_list (List.map (fun src => (src, map.put map.empty (R, orig_src) (graph.edges g src))) (graph.sources g)).
+
+Definition dumb_ftables g layout external_producers_of :=
+  let internal_producers_of := get_internal_producers_of layout in
+  let all_producers_of := union_with (list_union eqb) internal_producers_of external_producers_of in
+  let all_ftables := flat_map (fun '(R, producers) => List.map (dumb_ftables_at g R) producers) (map.tuples all_producers_of) in
+  fold_left (union_with (union_with (list_union eqb))) all_ftables map.empty.
+
+Definition compile_with_dumb_ftables (layout : layout_map)
+  (external_producers_of external_consumers_of : fact_locations)
+  (g : node_graph) : result (list node_info) :=
+  compile layout external_producers_of external_consumers_of (dumb_ftables g.(edges) layout external_producers_of) g.
 End DistributedDatalogToHardwareCompiler.
 
-Existing Instance SortedListNat.map.
 From coqutil Require Import SortedListString.
 Existing Instance SortedListString.map.
 

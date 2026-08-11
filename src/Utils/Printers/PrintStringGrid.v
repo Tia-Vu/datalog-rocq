@@ -2,12 +2,10 @@ From JSON Require Import Encode Printer.
 From Stdlib Require Import String List ZArith.
 From coqutil Require Import Map.Interface Result.
 From DatalogRocq Require Import DistributedDatalogToHardwareCompiler PrintHardwareEncoding.
-From DatalogRocq Require Import StringDatalogParams GridTopology GridGraph SortedListNat.
+From DatalogRocq Require Import StringDatalogParams GridTopology GridGraph SortedListNat StringGridCompiler.
 From DatalogRocq Require Import FamilyCompiler BasicProgramCompiler GraphCompiler CsdaCompiler CspaCompiler Po1Compiler Po2Compiler Po3Compiler Po4Compiler Po5Compiler PointstoCompiler RanpoCompiler ReachCompiler TcCompiler TransCompiler TriangleCompiler X9Compiler Unitprop1Compiler.
 
 Notation node_id := GridGraph.Node.
-Notation destination := (@DistributedHardwareProgram.destination node_id).
-Notation node_info := (@DistributedHardwareProgram.node_info node_id (SortedListNat.map (list destination))).
 
 Definition nat_to_string (n : nat) : string :=
   NilZero.string_of_uint (Nat.to_uint n).

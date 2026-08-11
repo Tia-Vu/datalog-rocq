@@ -37,37 +37,6 @@ Open Scope string_scope.
      get_nat := fun _ => 0; agg_bop := fun _ x _ => x; agg_id := fun _ => "" |}.
 
 Notation node_id     := GridGraph.Node.
-Notation destination := (@DistributedHardwareProgram.destination node_id).
-
-(*==========================================================================*)
-(*  [grid_equiv]: [nattify_and_compile_correct] with every instance pinned to  *)
-(*  the string-datalog / grid-topology backend.  A reusable, instance-free    *)
-(*  statement quantified only over the program / layout / facts.              *)
-(*==========================================================================*)
-
-Definition grid_equiv :=
-  @nattify_and_compile_correct
-    string string unit string
-    _ _ _ _
-    sig_src
-    (SortedListString.map string) (SortedListString.ok string)
-    StringDatalog.var_idx_map  (SortedListString.ok nat)
-    StringDatalog.var_node_set (SortedListString.ok unit)
-    StringDatalog.var_edge_set
-    node_id _ _
-    (GridTopology.node_id_map unit)
-    (GridTopology.node_id_map (GridTopology.node_id_map unit))
-    (SortedListNat.map (list destination))
-    (GridTopology.node_id_map (list (lowered_rule))) (GridTopology.node_id_map_ok _)
-    (GridTopology.node_id_map (SortedListNat.map (list destination)))
-    (SortedListNat.map (list node_id)) (SortedListNat.ok _)
-    (GridTopology.node_id_map (list rel_id))
-    (GridTopology.node_id_map_ok _)
-    (SortedListNat.ok _)
-    (GridTopology.node_id_map_ok _)
-    (GridTopology.node_id_map_ok _)
-    (GridTopology.node_id_map_ok _)
-    string _ _.
 
 (*==========================================================================*)
 (*  The concrete program and indexed layout.                                  *)
@@ -90,6 +59,7 @@ Definition FPS     := all_io_locations P idx_layout topo.
 Definition G       := GridTopology.make_topo_graph topo.
 Definition NLAYOUT := nattify_layout (rel_ids P) (make_layout_map P idx_layout).
 Definition NFPS    := nattify_fact_locs (rel_ids P) FPS.
+Definition FT      := dumb_ftables G.(ComputableGraph.edges) NLAYOUT NFPS.
 
 (* The compiler runs and SUCCEEDS (cheap head-constructor check). *)
 Definition compiled_J := Eval vm_compute in compile_program P idx_layout FPS FPS topo.
@@ -109,7 +79,7 @@ Proof. vm_compute; reflexivity. Qed.
 (*==========================================================================*)
 Opaque compile.
 Theorem end_to_end_equiv
-    (ninfos : list (@DistributedHardwareProgram.node_info node_id (SortedListNat.map (list destination))))
+    (ninfos : list (@DistributedHardwareProgram.node_info node_id _))
     (Qsrc : @Datalog.fact string string -> Prop) (fsrc : @Datalog.fact string string) :
   compile_program P idx_layout FPS FPS topo = Success ninfos ->
   (forall f, Qsrc f -> In (Datalog.rel_of f) (program_rels P)) ->
@@ -123,12 +93,9 @@ Theorem end_to_end_equiv
   <-> Datalog.prog_impl P Qsrc fsrc.
 Proof.
   intros Hc Hscope Hedb Houtrel.
-  apply (grid_equiv P NLAYOUT NFPS NFPS G ninfos Qsrc fsrc Hc);
-    [ vm_compute; reflexivity
-    | apply layout_distributes_programb_spec; vm_compute; reflexivity
-    | exact Hscope
-    | exact Hedb
-    | exact Houtrel ].
+  eapply nattify_and_compile_correct; try eassumption.
+  - reflexivity.
+  - apply layout_distributes_programb_spec. reflexivity.
 Qed.
 
 (*==========================================================================*)
@@ -153,6 +120,7 @@ Definition FPS_r     := all_io_locations Preach idx_layout_r topo_r.
 Definition G_r       := GridTopology.make_topo_graph topo_r.
 Definition NLAYOUT_r := nattify_layout (rel_ids Preach) (make_layout_map Preach idx_layout_r).
 Definition NFPS_r    := nattify_fact_locs (rel_ids Preach) FPS_r.
+Definition FT_r      := dumb_ftables G_r.(ComputableGraph.edges) NLAYOUT_r NFPS_r.
 
 Definition compiled_R := Eval vm_compute in compile_program Preach idx_layout_r FPS_r FPS_r topo_r.
 Example compiled_R_ok : match compiled_R with Success _ => True | _ => False end := I.
@@ -163,7 +131,7 @@ Example check_distributes_r : layout_distributes_programb (nattify_rel_prog (pro
 Proof. vm_compute; reflexivity. Qed.
 
 Theorem end_to_end_equiv_reach
-    (ninfos : list (@DistributedHardwareProgram.node_info node_id (SortedListNat.map (list destination))))
+    (ninfos : list (@DistributedHardwareProgram.node_info node_id _))
     (Qsrc : @Datalog.fact string string -> Prop) (fsrc : @Datalog.fact string string) :
   compile_program Preach idx_layout_r FPS_r FPS_r topo_r = Success ninfos ->
   (forall f, Qsrc f -> In (Datalog.rel_of f) (program_rels Preach)) ->
@@ -177,10 +145,7 @@ Theorem end_to_end_equiv_reach
   <-> Datalog.prog_impl Preach Qsrc fsrc.
 Proof.
   intros Hc Hscope Hedb Houtrel.
-  apply (grid_equiv Preach NLAYOUT_r NFPS_r NFPS_r G_r ninfos Qsrc fsrc Hc);
-    [ vm_compute; reflexivity
-    | apply layout_distributes_programb_spec; vm_compute; reflexivity
-    | exact Hscope
-    | exact Hedb
-    | exact Houtrel ].
+  eapply nattify_and_compile_correct; try eassumption.
+  - reflexivity.
+  - apply layout_distributes_programb_spec. reflexivity.
 Qed.

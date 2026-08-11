@@ -6,7 +6,8 @@
 -Q datalog/verified-scheduling/src/verified_lowering/inferpad Inferpad
 -Q datalog/verified-scheduling/src/verified_lowering/stringify Stringify
 -Q datalog/verified-scheduling/src/examples Examples
--Q datalog/coqutil/src/coqutil coqutil
+-Q datalog/graph_search/coqutil/src/coqutil coqutil
+-Q datalog/graph_search/src GraphSearch
 -Q datalog/src/util Datalog
 -Q datalog/src/datalog Datalog
 -Q datalog/src/atl Datalog

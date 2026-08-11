@@ -196,18 +196,6 @@ Definition hw_prog_impl_fact (tries : list trie) (hp : hardware_program)
   : dl_fact -> Prop :=
   node_run tries hp (fun _ => False).
 
-(* [pftree] weakening (the new [Datalog] drops the old [pftree_weaken]; we reprove
-   it from [pftree_ind]): replacing the step relation by a weaker one preserves trees. *)
-Lemma pftree_weaken {U : Type} (P1 P2 : U -> list U -> Prop) (Q : U -> Prop) x :
-  (forall x l, P1 x l -> P2 x l) ->
-  pftree P1 Q x -> pftree P2 Q x.
-Proof.
-  intros Himp.
-  apply (Datalog.pftree_ind P1 Q (fun x => pftree P2 Q x)).
-  - intros x0 HQ. apply pftree_leaf; assumption.
-  - intros x0 l HP1 _ HR. eapply pftree_step; [apply Himp; eassumption | assumption].
-Qed.
-
 (*============================================================================*)
 (*  Correctness: trie-join semantics vs. datalog semantics                    *)
 (*============================================================================*)

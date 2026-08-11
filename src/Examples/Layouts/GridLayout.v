@@ -1,4 +1,4 @@
-From Stdlib Require Import List Bool Lia.
+From Stdlib Require Import List Bool Lia Relation_Operators.
 From Datalog Require Import Datalog.
 From DatalogRocq Require Import DistributedDatalog Topologies.Graph GridGraph.
 From coqutil Require Import Map.Interface Eqb.
@@ -37,8 +37,8 @@ Section GridLayout.
     else [].
 
   (* Just putting in some dummy values for now *)
-  Definition mk_always_forward_table (dims : list nat) (n : Node) : rel -> list Node :=
-    fun f => filter (GridGraph.is_neighbor dims n) (all_nodes_h dims).
+  Definition mk_always_forward_table (dims : list nat) (n : Node) : rel -> Node -> list Node :=
+    fun f s => filter (GridGraph.is_neighbor dims n) (all_nodes_h dims).
 
   Definition mk_no_input_fn (n : Node) (f : @Datalog.fact rel T) : Prop := False.
 
@@ -122,58 +122,20 @@ Proof.
         * discriminate H_r_eq.
 Qed.
 
-(* If n2 is a neighbor of n1, then forwarding reaches n2 in one step *)
-Lemma grid_forward_step :
-  forall dims n1 n2 r,
-    GridGraph.is_graph_node dims n1 ->
-    GridGraph.is_graph_node dims n2 ->
-    GridGraph.is_neighbor dims n1 n2 = true ->
-    forwarding_reachable (mk_always_forward_table dims) r n1 n2.
-Proof.
-  intros. apply fwd_step.
-  unfold mk_always_forward_table.
-  apply filter_In. split.
-  - apply all_nodes_correct. exact H0.
-  - exact H1.
-Qed.
-
-(* forwarding reachable is transitive *)
-Lemma forwarding_reachable_trans :
-  forall (fwd : ForwardingFn) (r : rel) (n1 n2 n3 : Node),
-    forwarding_reachable fwd r n1 n2 ->
-    forwarding_reachable fwd r n2 n3 ->
-    forwarding_reachable fwd r n1 n3.
-Proof.
-  intros fwd r n1 n2 n3 H12 H23.
-  induction H12.
-  - eapply fwd_trans; eauto.
-  - eapply fwd_trans; eauto.
-Qed.
-
 (* In GridLayout section, convert grid_reachable to forwarding_reachable *)
 Lemma grid_reachable_to_forwarding :
-  forall dims0 r n1 n2,
+  forall dims0 r s n1 n2,
     GridGraph.grid_reachable dims0 n1 n2 ->
-    n1 = n2 \/ forwarding_reachable (mk_always_forward_table dims0) r n1 n2.
+    forwarding_reachable (mk_always_forward_table dims0) r s n1 n2.
 Proof.
-  intros dims0 r n1 n2 Hreach.
+  intros dims0 r s n1 n2 Hreach.
   induction Hreach.
-  - left. reflexivity.
-  - right.
-    destruct IHHreach as [-> | Hfwd].
-    + (* n2 = n3, just one forwarding step *)
-      apply fwd_step.
-      unfold mk_always_forward_table.
-      apply filter_In. split.
-      * apply GridGraph.all_nodes_h_correct. inversion H; auto.
-      * apply GridGraph.is_neighbor_correct. exact H.
-    + (* n2 reaches n3, and n1 reaches n2 *)
-      eapply fwd_trans.
-      * unfold mk_always_forward_table.
-        apply filter_In. split.
-        -- apply GridGraph.all_nodes_h_correct. inversion H; eauto.
-        -- apply GridGraph.is_neighbor_correct. exact H.
-      * exact Hfwd.
+  - apply rt1n_refl.
+  - eapply rt1n_trans; [| exact IHHreach].
+    unfold DistributedDatalog.forwards_rel, mk_always_forward_table.
+    apply filter_In. split.
+    + apply GridGraph.all_nodes_h_correct. inversion H; eauto.
+    + apply GridGraph.is_neighbor_correct. exact H.
 Qed.
 
 Lemma good_forwarding_complete_grid :
@@ -196,7 +158,7 @@ Proof.
   apply GridGraph.grid_connected; auto.
   - intros n_prod Hprod. exists n_prod. split.
     + simpl. unfold mk_all_output_fn. auto.
-    + left; auto.
+    + apply rt1n_refl.
 Qed.
 
 Lemma good_network :
@@ -217,7 +179,7 @@ Proof.
         apply filter_In in H.
         destruct H as [Hneighbor Hin].
         apply GridGraph.is_neighbor_correct in Hin.
-        split; try inversion Hin; auto.
+        exact Hin.
         ** apply good_forwarding_complete_grid; auto.
       * split.
         ** simpl. unfold good_input. intros. inversion H.
