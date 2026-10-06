@@ -19,12 +19,12 @@ Fixpoint list_order (l1 l2 : list A) : bool :=
 
 
 Lemma list_order_irrefl: forall l, list_order l l = false.
-Proof. induction l; auto. simpl. destruct A_order_spec. 
+Proof. induction l; auto. simpl. destruct A_order_spec.
        destruct (A_order a a) eqn:Haa; auto.
        pose proof (ltb_antirefl a). eauto.
 Qed.
 
-Lemma list_strict_order: SortedList.parameters.strict_order list_order.
+#[global] Instance list_strict_order: SortedList.parameters.strict_order list_order.
 Proof.
   constructor.
   - intros l. apply (list_order_irrefl l).
@@ -59,11 +59,9 @@ Proof.
     pose proof (ltb_total a a0 Haa0 Haa0'). subst.
     specialize (IHk1 k2 H H0). subst. auto.
 Qed.
-      
-Definition Build_parameters T := SortedList.parameters.Build_parameters (list A) T list_order.
-Definition map T := SortedList.map (Build_parameters T) list_strict_order.
-Lemma ok T: map.ok (map T).
-  exact (@SortedList.map_ok (Build_parameters T) list_strict_order).
-Qed.
 
+Definition Build_parameters T := SortedList.parameters.Build_parameters (list A) T list_order.
+#[global] Instance map T : map.map (list A) T := SortedList.map (Build_parameters T) list_strict_order.
+#[global] Instance ok T: map.ok (map T).
+Proof. exact (@SortedList.map_ok (Build_parameters T) list_strict_order). Qed.
 End ___.

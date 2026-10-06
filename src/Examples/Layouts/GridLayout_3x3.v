@@ -92,7 +92,7 @@ Section FamilyExample.
   Definition family_3x3 := GridLayout.mk_dataflow_network dims indexed_layout program.
 
   (* The layout passes the checker (should compute to [true]); [rule]'s [Eqb] is inferred. *)
-  Compute DistributedDatalog.good_layoutb (GridGraph.all_nodes_h dims)
+  Compute GridLayout.good_layoutb (GridGraph.all_nodes_h dims)
             (GridLayout.mk_layout_from_indexed_layout dims indexed_layout program) program.
 
   (* The grid network built from this layout is well-formed. *)

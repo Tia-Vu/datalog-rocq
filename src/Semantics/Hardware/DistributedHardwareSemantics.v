@@ -1,8 +1,7 @@
 (* OPERATIONAL distributed hardware semantics: a standalone small-step machine that just RUNS the
-   compiled program.  Each step either delivers an EDB fact at an input node, runs a node's hardware
-   program over the facts it currently holds ([NodeHardwareSemantics.node_run]), or forwards a fact
-   to a neighbour per that node's forwarding table.  [run_ninfos] runs the compiler's returned
-   [ninfos] directly.
+   compiled program.  Each step either delivers an EDB fact at an input node, fires one of a node's
+   hardware rules on facts it currently holds, or forwards a fact to a neighbour per that node's
+   forwarding table.  [run_ninfos] runs the compiler's returned [ninfos] directly.
 
    This file deliberately does NOT depend on [DistributedDatalog]: the operational semantics is
    defined purely from the compiled data (per-node program / tries / forwarding) plus the runtime
@@ -15,10 +14,9 @@
    uses to prove adequacy. *)
 
 From Datalog Require Import Datalog.
-From Datalog.Util Require Import Pftree.
 From Stdlib Require Import List Bool ZArith.
 From coqutil Require Import Datatypes.List Map.Interface Map.Properties Eqb.
-From DatalogRocq Require Import HardwareProgram DistributedHardwareProgram NodeHardwareSemantics.
+From DatalogRocq Require Import Topologies.Graph HardwareProgram DistributedHardwareProgram NodeHardwareSemantics.
 
 Import ListNotations.
 
@@ -26,8 +24,7 @@ Section DistributedHardwareSemantics.
 
 (* Relations are numeric ids at this layer; functions, variables, and values are abstract. *)
 Context `{params : datalog_params (_rel := rel_id)}.
-(* The node-identifier type is a parameter (was the hardcoded [nat*nat]). *)
-Context {node_id : Type}
+Context {node_id : node_idT}
         {node_id_eqb : Eqb node_id} {node_id_eqb_ok : Eqb_ok node_id_eqb}.
 
 (* ground/runtime facts at this (numeric-id) layer *)
@@ -52,14 +49,16 @@ Context (prog : node_id -> hardware_program) (tries : node_id -> list trie)
         (forward : node_id -> rel_id -> list node_id)
         (input : node_id -> dl_fact -> Prop) (output : node_id -> rel_id -> Prop).
 
-(* one operational step: an EDB fact ENTERS at an input node; a node RUNS its hardware program over
-   the facts it currently holds ([node_run]); or a fact is FORWARDED to a neighbour per that node's
-   forwarding table. *)
+(* one operational step: an EDB fact ENTERS at an input node; a node FIRES one hardware rule on
+   facts it currently holds; or a fact is FORWARDED to a neighbour per that node's forwarding
+   table. *)
 Inductive dstep (c : config) : config -> Prop :=
 | dstep_input n f :
     input n f -> dstep c (cadd c n f)
-| dstep_run n f :
-    node_run (tries n) (prog n) (c n) f -> dstep c (cadd c n f)
+| dstep_run n nf hyps :
+    Exists (fun hr => hw_rule_impl (tries n) hr nf hyps) (prog n) ->
+    Forall (c n) hyps ->
+    dstep c (cadd c n (fact.normal nf))
 | dstep_forward n n' f :
     c n f -> In n' (forward n (fact.rel f)) -> dstep c (cadd c n' f).
 
@@ -76,8 +75,7 @@ End Run.
 
 (*----Running the compiler's output [ninfos] directly----*)
 
-Context {forwarding_table : map.map rel_id (list (@DistributedHardwareProgram.destination node_id))}.
-Abbreviation node_info := (@DistributedHardwareProgram.node_info node_id forwarding_table).
+Context {forwarding_table : map.map rel_id (list destination)}.
 
 (* read a node's compiled data off the returned [ninfos] (empty default if the node is absent). *)
 Definition find_ninfo (ninfos : list node_info) (n : node_id) : node_info :=
@@ -133,10 +131,10 @@ Lemma dstep_replay (c d c' : config) :
   (forall n f, c n f -> d n f) -> step c c' ->
   exists d', step d d' /\ (forall n f, c' n f -> d' n f) /\ (forall n f, d n f -> d' n f).
 Proof.
-  intros Hsub Hstep. inversion Hstep as [n f Hin | n f Hrun | n n' f Hcnf Hfwd]; subst;
+  intros Hsub Hstep. inversion Hstep as [n f Hin | n nf hyps Hfire Hhyps | n n' f Hcnf Hfwd]; subst;
     [ exists (cadd d n f); split; [apply dstep_input; exact Hin |]
-    | exists (cadd d n f); split;
-        [apply dstep_run; exact (pftree.weaken_hyp _ _ _ _ Hrun (Hsub n)) |]
+    | exists (cadd d n (fact.normal nf)); split;
+        [eapply dstep_run; [exact Hfire | exact (Forall_impl _ (Hsub n) Hhyps)] |]
     | exists (cadd d n' f); split;
         [apply (dstep_forward prog tries forward input d n n' f (Hsub n f Hcnf) Hfwd) |] ];
     (split; intros n0 f0; unfold cadd; [intros [H|H]; [left; apply Hsub; exact H | right; exact H]
@@ -174,34 +172,5 @@ Proof.
 Qed.
 
 End Adequacy.
-
-(* The run depends on the forwarding function only POINTWISE: equal forwarding tables give equal runs.
-   (Used to bridge the operational [forward_from_ninfos] to the correctness layer's [forward_of_ninfos],
-   which are pointwise-equal but not syntactically identical -- keeps the top theorem funext-free.) *)
-Lemma dreach_forward_ext (prog : node_id -> hardware_program) (tries : node_id -> list trie)
-      (fwd1 fwd2 : node_id -> rel_id -> list node_id) (input : node_id -> dl_fact -> Prop) (c : config) :
-  (forall n r, fwd1 n r = fwd2 n r) ->
-  dreach prog tries fwd1 input c -> dreach prog tries fwd2 input c.
-Proof.
-  intros Hext Hr. induction Hr as [| c0 c0' Hr0 IH Hstep].
-  - apply dreach0.
-  - eapply dreachS; [exact IH |].
-    inversion Hstep as [n f Hi | n f Hru | n n' f Hcnf Hfwd]; subst c0'.
-    + apply dstep_input; exact Hi.
-    + apply dstep_run; exact Hru.
-    + eapply dstep_forward; [exact Hcnf | rewrite <- (Hext n (fact.rel f)); exact Hfwd].
-Qed.
-
-Lemma hw_run_output_forward_ext (prog : node_id -> hardware_program) (tries : node_id -> list trie)
-      (fwd1 fwd2 : node_id -> rel_id -> list node_id)
-      (input : node_id -> dl_fact -> Prop) (output : node_id -> rel_id -> Prop) (f : dl_fact) :
-  (forall n r, fwd1 n r = fwd2 n r) ->
-  hw_run_output prog tries fwd1 input output f <-> hw_run_output prog tries fwd2 input output f.
-Proof.
-  intros Hext. split; intros [n [c [Hr [Hcf Ho]]]]; exists n, c;
-    (split; [| split; [exact Hcf | exact Ho]]).
-  - exact (dreach_forward_ext prog tries fwd1 fwd2 input c Hext Hr).
-  - exact (dreach_forward_ext prog tries fwd2 fwd1 input c (fun n r => eq_sym (Hext n r)) Hr).
-Qed.
 
 End DistributedHardwareSemantics.

@@ -3,7 +3,7 @@ From Datalog.Util Require Export List.
 From Stdlib Require Import String List.
 From coqutil Require Import Datatypes.List.
 From coqutil Require Export Eqb.   (* re-export so [string]'s [Eqb] reaches importers *)
-From DatalogRocq Require Import EqbSpec.
+From Datalog.Util Require Export Eqb.
 Import ListNotations.
 Open Scope bool_scope.
 Open Scope string_scope.
@@ -12,7 +12,7 @@ Open Scope string_scope.
    are strings, aggregation is unused ([unit]), values are strings.  Registering each type as a
    typeclass instance lets every downstream [rule]/[clause]/... and every [eqb] be
    inferred -- no per-type aliases or equality definitions are needed ([string] has [Eqb] in
-   coqutil, [unit] in [EqbSpec]). *)
+   coqutil, [unit] in [Datalog.Util.Eqb]). *)
 #[export] Instance string_rel : relT := string.
 #[export] Instance string_var : exprvarT := string.
 #[export] Instance string_fn : fnT := string.

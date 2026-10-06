@@ -5,7 +5,6 @@ From Stdlib Require Import List String Bool ZArith Lia.
 From coqutil Require Import Datatypes.List Datatypes.Option Map.Interface Tactics Tactics.fwd Eqb.
 From Datalog Require Import Datalog.
 From Datalog.Util Require Import List Eqb.
-From DatalogRocq Require Import EqbSpec.
 
 Import ListNotations.
 Open Scope bool_scope.

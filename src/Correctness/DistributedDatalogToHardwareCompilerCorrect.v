@@ -16,11 +16,11 @@
    [compile_rule] produces, i.e. the *generic-join correctness*: the trie-join query
    [generate_query] admits exactly the variable bindings under which the lowered rule fires. *)
 
-From Stdlib Require Import List Bool ZArith Lia.
+From Stdlib Require Import List Bool ZArith Lia Relation_Operators.
 From coqutil Require Import Datatypes.List Datatypes.ListSet Map.Interface Map.Properties Datatypes.Result Eqb.
 From Datalog Require Import Datalog NattifyRel RelMap.
 From Datalog.Util Require Import List Map Default Pftree Eqb.
-From DatalogRocq Require Import HardwareProgram DistributedDatalogToHardwareCompiler NodeHardwareSemantics ComputableGraph.
+From DatalogRocq Require Import Topologies.Graph HardwareProgram DistributedDatalogToHardwareCompiler NodeHardwareSemantics ComputableGraph.
 From DatalogRocq Require Import DistributedDatalog DistributedHardwareSemantics.
 From DatalogRocq Require Import ForwardingCorrect.
 
@@ -30,9 +30,7 @@ Local Abbreviation nfact R args := (fact.normal {| normal_fact.rel := R; normal_
 
 Section DistributedDatalogToHardwareCompilerCorrect.
 
-Context `{params : datalog_params (_rel := rel_id)}.
-Context {var_eqb : Eqb exprvar} {var_eqb_ok : Eqb_ok var_eqb}.
-Context {fn_eqb : Eqb fn} {fn_eqb_ok : Eqb_ok fn_eqb}.
+Context `{params : datalog_params (_rel := rel_id) (rel_eqb := nat_eqb) (rel_eqb_ok := nat_eqb_ok)}.
 Context {var_idx_map : map.map exprvar nat}.   (* used by compute_permutation *)
 Context {var_idx_map_ok : map.ok var_idx_map}.
 
@@ -1177,7 +1175,7 @@ Open Scope result_monad_scope.
 Context {var : exprvarT} {fn : fnT} {aggregator : aggregatorT} {T : valueT}.
 Context {var_eqb : Eqb var} {var_eqb_ok : Eqb_ok var_eqb}.
 Context {fn_eqb : Eqb fn} {fn_eqb_ok : Eqb_ok fn_eqb}.
-Context {node_id : Type}
+Context {node_id : node_idT}
         {node_id_eqb : node_id -> node_id -> bool}
         {node_id_eqb_spec : forall x y : node_id, BoolSpec (x = y) (x <> y) (node_id_eqb x y)}.
 Context {node_id_set : map.map node_id unit}.
@@ -1829,17 +1827,15 @@ Open Scope result_monad_scope.
 Context {var : exprvarT} {fn : fnT} {aggregator : aggregatorT}.
 Context {var_eqb : Eqb var} {var_eqb_ok : Eqb_ok var_eqb}.
 Context {fn_eqb : Eqb fn} {fn_eqb_ok : Eqb_ok fn_eqb}.
-Context {node_id : Type}
+Context {node_id : node_idT}
         {node_id_eqb : node_id -> node_id -> bool}
         {node_id_eqb_spec : forall x y : node_id, BoolSpec (x = y) (x <> y) (node_id_eqb x y)}.
 Context {node_id_set : map.map node_id unit}.
-Context {forwarding_table : map.map rel_id (list (@DistributedHardwareProgram.destination node_id))}.
+Context {forwarding_table : map.map rel_id (list destination)}.
 #[local] Existing Instance rel_id.
 Context {var_node_set : map.map var unit}.
 Context {var_edge_set : map.map var var_node_set}.
 Context {var_idx_map : map.map var nat}.
-
-Abbreviation node_info := (@DistributedHardwareProgram.node_info node_id forwarding_table).
 
 (* [compile_rule] = [compile_hyps] (which threads the trie context) then [compile_concls]
    (which leaves the context untouched), so it preserves [wf_nc] and grows [nctries]. *)
@@ -1924,20 +1920,16 @@ Section NodeCorrect.
 Import ResultMonadNotations.
 Open Scope result_monad_scope.
 
-Context `{params : datalog_params (_rel := rel_id)}.
-Context {var_eqb : Eqb exprvar} {var_eqb_ok : Eqb_ok var_eqb}.
-Context {fn_eqb : Eqb fn} {fn_eqb_ok : Eqb_ok fn_eqb}.
+Context `{params : datalog_params (_rel := rel_id) (rel_eqb := nat_eqb) (rel_eqb_ok := nat_eqb_ok)}.
 Context {var_idx_map : map.map exprvar nat} {var_idx_map_ok : map.ok var_idx_map}.
 Context {var_node_set : map.map exprvar unit} {var_node_set_ok : map.ok var_node_set}.
 Context {var_edge_set : map.map exprvar var_node_set}.
-Context {node_id : Type}
+Context {node_id : node_idT}
         {node_id_eqb : node_id -> node_id -> bool}
         {node_id_eqb_spec : forall x y : node_id, BoolSpec (x = y) (x <> y) (node_id_eqb x y)}.
 Context {node_id_set : map.map node_id unit}.
-Context {forwarding_table : map.map rel_id (list (@DistributedHardwareProgram.destination node_id))}.
+Context {forwarding_table : map.map rel_id (list destination)}.
 #[local] Existing Instance rel_id.
-
-Abbreviation node_info := (@DistributedHardwareProgram.node_info node_id forwarding_table).
 
 (* PER-RULE: a compiled rule (whose post-context tries are all in the node table [tries], which
    has unique ids) matches its lowered datalog rule -- by discharging every hypothesis of
@@ -2075,19 +2067,16 @@ Section CompileTop.
 Import ResultMonadNotations.
 Open Scope result_monad_scope.
 
-Context `{params : datalog_params (_rel := rel_id)}.
-Context {var_eqb : Eqb exprvar} {var_eqb_ok : Eqb_ok var_eqb}.
-Context {fn_eqb : Eqb fn} {fn_eqb_ok : Eqb_ok fn_eqb}.
+Context `{params : datalog_params (_rel := rel_id) (rel_eqb := nat_eqb) (rel_eqb_ok := nat_eqb_ok)}.
 Context {var_idx_map : map.map exprvar nat} {var_idx_map_ok : map.ok var_idx_map}.
 Context {var_node_set : map.map exprvar unit} {var_node_set_ok : map.ok var_node_set}.
 Context {var_edge_set : map.map exprvar var_node_set}.
-Context {node_id : Type}
+Context {node_id : node_idT}
         {node_id_eqb : Eqb node_id} {node_id_eqb_spec : Eqb_ok node_id_eqb}.
 #[local] Existing Instance rel_id.
-Context {rule_eqb : Eqb rule} {rule_eqb_ok : Eqb_ok rule_eqb}.
 Context {node_id_set : map.map node_id unit}.
 Context {node_id_edge_set : map.map node_id node_id_set}.
-Context {forwarding_table : map.map rel_id (list (@DistributedHardwareProgram.destination node_id))}.
+Context {forwarding_table : map.map rel_id (list destination)}.
 Context {layout_map : map.map node_id (@HardwareProgram.lowered_program exprvar fn aggregator)}
         {layout_map_ok : map.ok layout_map}.
 Context {node_ftable_map : map.map node_id forwarding_table}.
@@ -2095,8 +2084,6 @@ Context {fact_locations_map : map.map rel_id (list node_id)}
         {fact_locations_map_ok : map.ok fact_locations_map}.
 Context {rels_at_node : map.map node_id (list rel_id)}
         {rels_at_node_ok : map.ok rels_at_node}.
-
-Abbreviation node_info := (@DistributedHardwareProgram.node_info node_id forwarding_table).
 
 (* [all_producers]/[all_consumers] are the merged (internal + external) location maps the compiler's
    [generate_forwarding_table] now computes inline; recompute them here for the correctness reasoning. *)
@@ -2413,9 +2400,9 @@ Lemma generate_forwarding_table_sound (g : node_graph) (all_rels : list rel_id)
     (ninfos : list node_info) (lfc lfp : fact_locations_map) :
   ftable_edges_sound g (fold_left (update_forwarding_table_for_rel g lfc lfp ninfos) all_rels map.empty).
 Proof.
-  apply ForwardingCorrect.fold_left_pres_sound.
+  apply fold_left_inv.
   - apply ForwardingCorrect.ftable_edges_sound_empty.
-  - intros acc rel0 Hacc. apply update_rel_pres_sound. exact Hacc.
+  - intros acc rel0 _ Hacc. apply update_rel_pres_sound. exact Hacc.
 Qed.
 
 (*============================================================================*)
@@ -2426,10 +2413,8 @@ Qed.
 (*  the producer/consumer/relation folds by the [*_adds]/[*_pres] combinators.   *)
 (*============================================================================*)
 
-Abbreviation add_trie_dest :=
-  (@DistributedDatalogToHardwareCompiler.add_trie_dest_to_forwarding_table node_id node_id_eqb forwarding_table node_ftable_map).
-Abbreviation add_path :=
-  (@DistributedDatalogToHardwareCompiler.add_path_to_forwarding_table node_id node_id_eqb forwarding_table node_ftable_map).
+Abbreviation add_trie_dest := DistributedDatalogToHardwareCompiler.add_trie_dest_to_forwarding_table.
+Abbreviation add_path := DistributedDatalogToHardwareCompiler.add_path_to_forwarding_table.
 
 (* routing one relation only adds forwarding edges *)
 Lemma update_rel_mono (g : node_graph) (rel0 : rel_id)
@@ -2494,8 +2479,7 @@ Qed.
 (* the forwarding function a compiled node exposes for a relation: the [DestEdge] targets
    recorded in its forwarding table.  [In n2 (fwd_list ft n r)] is exactly [has_fwd_edge]. *)
 Definition fwd_list (ftables : node_ftable_map) (n : node_id) (r : rel_id) : list node_id :=
-  @ForwardingCorrect.dest_edges node_id
-    (@ForwardingCorrect.node_rel_dests node_id forwarding_table node_ftable_map ftables n r).
+  ForwardingCorrect.dest_edges (ForwardingCorrect.node_rel_dests ftables n r).
 
 (*----Forwarding read off the returned [ninfos]----*)
 
@@ -2546,17 +2530,10 @@ Proof.
     cbn. unfold get_or_default, get_or. rewrite Hgn. reflexivity.
 Qed.
 
-(* The forwarding FUNCTION read off [ninfos]: for node [n], relation [r], the edge destinations its
-   own attached forwarding table lists. *)
-Definition forward_of_ninfos (ninfos : list node_info) (n : node_id) (r : rel_id) : list node_id :=
-  @ForwardingCorrect.dest_edges node_id
-    (match map.get (find_ninfo ninfos n).(nforwarding) r with Some ds => ds | None => [] end).
-
-(* It coincides, pointwise, with the [fwd_list] of the generated table. *)
 Lemma forward_of_ninfos_eq (ninfos0 : list node_info) (ft : node_ftable_map) (n : node_id) (r : rel_id) :
-  forward_of_ninfos (attach_forwarding_tables ninfos0 ft) n r = fwd_list ft n r.
+  forward_from_ninfos (attach_forwarding_tables ninfos0 ft) n r = fwd_list ft n r.
 Proof.
-  unfold forward_of_ninfos, fwd_list, ForwardingCorrect.node_rel_dests.
+  unfold forward_from_ninfos, fwd_list, ForwardingCorrect.dest_edges, ForwardingCorrect.node_rel_dests.
   rewrite (find_ninfo_nforwarding ninfos0 ft n). reflexivity.
 Qed.
 
@@ -2566,9 +2543,9 @@ Lemma forwarding_reachable_ext (f1 f2 : node_id -> rel_id -> list node_id) (r : 
   DistributedDatalog.forwarding_reachable f1 r a b ->
   DistributedDatalog.forwarding_reachable f2 r a b.
 Proof.
-  intros Hext H. induction H as [n1 n2 Hin | n1 n2 n3 Hin Hr IH].
-  - apply DistributedDatalog.fwd_step. rewrite <- (Hext n1 r). exact Hin.
-  - apply (DistributedDatalog.fwd_trans f2 r n1 n2 n3); [rewrite <- (Hext n1 r); exact Hin | exact IH].
+  intros Hext H. induction H as [|n1 n2 n3 Hin _ IH]; [apply rt1n_refl|].
+  eapply rt1n_trans; [|exact IH]. unfold DistributedDatalog.forwards_rel in *.
+  rewrite <- Hext. exact Hin.
 Qed.
 
 (* [good_source] depends on the forwarding function only through [forwarding_reachable], so it
@@ -2580,21 +2557,19 @@ Lemma good_source_forward_ext (net1 net2 : DNet) (n : node_id) (R : rel_id) :
   DistributedDatalog.good_source net1 n R -> DistributedDatalog.good_source net2 n R.
 Proof.
   intros Hlay Hout Hfwd [Hcons Hexout]. split.
-  - intros n_cons Hncons. rewrite <- Hlay in Hncons. destruct (Hcons n_cons Hncons) as [Heq | Hreach].
-    + left; exact Heq.
-    + right. exact (forwarding_reachable_ext _ _ R n n_cons Hfwd Hreach).
+  - intros n_cons Hncons. rewrite <- Hlay in Hncons.
+    exact (forwarding_reachable_ext _ _ R n n_cons Hfwd (Hcons n_cons Hncons)).
   - intros Houtex2.
     assert (Houtex1 : exists n_out, net1.(DistributedDatalog.output) n_out R).
     { destruct Houtex2 as [n_out Ho]. exists n_out. rewrite Hout. exact Ho. }
     destruct (Hexout Houtex1) as [n_out [Hout_o Hreach_o]]. exists n_out. split.
     + rewrite <- Hout. exact Hout_o.
-    + destruct Hreach_o as [Heq | Hreach];
-        [left; exact Heq | right; exact (forwarding_reachable_ext _ _ R n n_out Hfwd Hreach)].
+    + exact (forwarding_reachable_ext _ _ R n n_out Hfwd Hreach_o).
 Qed.
 
 (* [good_network_streaming] transports across two nets agreeing on graph/layout/input/output with
    pointwise-equal forwarding -- the forwarding function only enters via [good_forwarding_sound] and
-   [good_source].  This is the bridge that lets the [forward_of_ninfos] network inherit the
+   [good_source].  This is the bridge that lets the [forward_from_ninfos] network inherit the
    [fwd_list] network's well-formedness (no funext). *)
 Lemma good_network_streaming_forward_ext (net1 net2 : DNet)
     (program : list (Datalog.rule (_rel := rel_id) (_fn := fn))) (Q : Datalog.fact (_rel := rel_id) -> Prop) :
@@ -2653,10 +2628,8 @@ Proof.
   { intros i x y Hx Hy. unfold fwd_list.
     exact (generate_forwarding_table_adds g all_rels ninfos rel0 prod cons path producers
              consumers i x y lfc lfp Hrel Hprods Hcons Hprod Hcon Hne Hpath Hx Hy). }
-  destruct (@DistributedDatalog.forwarding_chain_reachable rel_id node_id
-              (fwd_list FT) rel0 path prod cons Hchain Hhd Hlast) as [Heq | Hreach].
-  - exfalso. apply Hne. exact Heq.
-  - exact Hreach.
+  exact (@DistributedDatalog.forwarding_chain_reachable rel_id node_id
+           (fwd_list FT) rel0 path prod cons Hchain Hhd Hlast).
 Qed.
 
 Abbreviation cg2g := (@ComputableGraph.computable_graph_to_graph node_id node_id_set node_id_edge_set).
@@ -2778,12 +2751,11 @@ Lemma construction_reach (all_rels : list rel_id) (ninfos : list node_info)
   existsb (eqb np) (get_or_default lfp R) = true ->
   existsb (eqb nc) (get_or_default lfc R) = true ->
   Datalog.Util.List.is_Some (get_path g np nc) = true ->
-  np = nc \/
   @DistributedDatalog.forwarding_reachable rel_id node_id
     (fwd_list (fold_left (update_forwarding_table_for_rel g lfc lfp ninfos) all_rels map.empty)) R np nc.
 Proof.
   intros HR Hprod Hcons Hpath.
-  destruct (eqb_boolspec _ np nc) as [E|Hne]; [left; exact E | right].
+  destruct (eqb_boolspec _ np nc) as [<-|Hne]; [apply rt1n_refl |].
   destruct (get_path g np nc) as [path|] eqn:Hgpath; [| cbn in Hpath; discriminate].
   apply existsb_eqb_in in Hprod. apply existsb_eqb_in in Hcons.
   unfold get_or_default, get_or in Hprod, Hcons.
@@ -3044,11 +3016,11 @@ Qed.
 (*----The hardware network read DIRECTLY off the returned [ninfos]----*)
 
 (* [dnet_of_ninfos ninfos base]: the dataflow network whose forwarding function is read off the
-   per-node [nforwarding] of [ninfos] (via [forward_of_ninfos]); graph/input/output/layout are
+   per-node [nforwarding] of [ninfos] (via [forward_from_ninfos]); graph/input/output/layout are
    inherited from [base] (the reference graph + EDB + output sinks + datalog layout). *)
 Definition dnet_of_ninfos (ninfos : list node_info) (base : DNet) : DNet :=
   {| DistributedDatalog.graph := base.(DistributedDatalog.graph);
-     DistributedDatalog.forward := forward_of_ninfos ninfos;
+     DistributedDatalog.forward := forward_from_ninfos ninfos;
      DistributedDatalog.input := base.(DistributedDatalog.input);
      DistributedDatalog.output := base.(DistributedDatalog.output);
      DistributedDatalog.layout := base.(DistributedDatalog.layout) |}.
@@ -3072,24 +3044,6 @@ Local Abbreviation Inp := (net.(DistributedDatalog.input)).
 Local Abbreviation Outp := (net.(DistributedDatalog.output)).
 Local Abbreviation present := (DistributedHardwareSemantics.present prog tries Fwd Inp).
 
-(* a single node's [node_run] re-plays as a network proof tree of [FactOnNode]s *)
-Lemma node_run_to_netpft (c : DistributedHardwareSemantics.config) (n : node_id) (f : Datalog.fact (_rel := rel_id)) :
-  (forall h, c n h -> network_pftree net (FactOnNode n h)) ->
-  node_run (tries n) (prog n) (c n) f ->
-  network_pftree net (FactOnNode n f).
-Proof.
-  intros Hleaf. unfold node_run. revert f.
-  apply (pftree.ind (hw_step (tries n) (prog n)) (c n) (fun f => network_pftree net (FactOnNode n f))).
-  - intros f0 HQ. apply Hleaf, HQ.
-  - intros f0 hyps' [nf hyps'' Hex] _ HR.
-    apply (matches_step _ _ _ _ _ (Hmatch n)) in Hex. apply Exists_exists in Hex. destruct Hex as [r [Hin Hr]].
-    unfold network_pftree. eapply pftree.step with (l := map (FactOnNode n) hyps'').
-    + eapply DistributedDatalog.RuleApp;
-        [ exact Hin | apply facts_on_node_map_fst | rewrite facts_on_node_map_snd; exact Hr ].
-    + apply Forall_forall. intros p Hp. apply in_map_iff in Hp.
-      destruct Hp as [g [<- Hg]]. rewrite Forall_forall in HR. apply HR, Hg.
-Qed.
-
 (* SOUNDNESS of the operational run: every reachable fact is derivable by the network *)
 Lemma reach_to_netpft (c : DistributedHardwareSemantics.config) :
   DistributedHardwareSemantics.dreach prog tries Fwd Inp c ->
@@ -3097,13 +3051,19 @@ Lemma reach_to_netpft (c : DistributedHardwareSemantics.config) :
 Proof.
   intros Hr. induction Hr as [| c c' Hr IH Hstep]; intros n f Hcf.
   - destruct Hcf.
-  - inversion Hstep as [a g Hi | a g Hru | a a' g Hag Hfwd]; subst c'.
+  - inversion Hstep as [a g Hi | a nf hyps Hfire Hhyps | a a' g Hag Hfwd]; subst c'.
     + destruct Hcf as [Hold | [-> ->]].
       * apply IH; exact Hold.
       * unfold network_pftree. eapply pftree.step with (l := []); [apply DistributedDatalog.Input; exact Hi | constructor].
     + destruct Hcf as [Hold | [-> ->]].
       * apply IH; exact Hold.
-      * apply (node_run_to_netpft c a g); [intros h Hch; apply IH; exact Hch | exact Hru].
+      * apply (matches_step _ _ _ _ _ (Hmatch a)) in Hfire. apply Exists_exists in Hfire.
+        destruct Hfire as [r [Hin Hri]].
+        unfold network_pftree. eapply pftree.step with (l := map (FactOnNode a) hyps).
+        -- eapply DistributedDatalog.RuleApp;
+             [ exact Hin | apply facts_on_node_map_fst | rewrite facts_on_node_map_snd; exact Hri ].
+        -- apply Forall_forall. intros p Hp. apply in_map_iff in Hp.
+           destruct Hp as [g [<- Hg]]. rewrite Forall_forall in Hhyps. apply IH, Hhyps, Hg.
     + destruct Hcf as [Hold | [-> ->]].
       * apply IH; exact Hold.
       * unfold network_pftree. eapply pftree.step with (l := [FactOnNode a g]);
@@ -3151,14 +3111,10 @@ Proof.
         rewrite Forall_forall in HR. exact (HR _ HinFact). }
       destruct (DistributedHardwareSemantics.present_list prog tries Fwd Inp n _ Hpres)
         as [c [Hrc Hcfacts]].
-      assert (Hnr : node_run (tries n) (prog n) (c n) (fact.normal nf)).
-      { unfold node_run. eapply pftree.step with (l := map snd (get_facts_on_node hyps)).
-        - constructor. apply (matches_step _ _ _ _ _ (Hmatch n)). apply Exists_exists. exists r. split; [exact Hin | exact Hr].
-        - apply Forall_forall. intros g Hg. apply pftree.leaf.
-          rewrite Forall_forall in Hcfacts. apply Hcfacts, Hg. }
       exists (DistributedHardwareSemantics.cadd c n (fact.normal nf)). split.
-      * eapply DistributedHardwareSemantics.dreachS;
-          [exact Hrc | apply DistributedHardwareSemantics.dstep_run; exact Hnr].
+      * eapply DistributedHardwareSemantics.dreachS; [exact Hrc |].
+        eapply DistributedHardwareSemantics.dstep_run; [| exact Hcfacts].
+        apply (matches_step _ _ _ _ _ (Hmatch n)). apply Exists_exists. exists r. split; [exact Hin | exact Hr].
       * right; split; reflexivity.
     + pose proof (Forall_inv HR) as Hpres. destruct Hpres as [c [Hrc Hcnf]].
       exists (DistributedHardwareSemantics.cadd c n' f). split.
@@ -3231,16 +3187,7 @@ Proof.
       [reflexivity | reflexivity | reflexivity | reflexivity | | exact Hgood].
     intros a r. cbn. rewrite Hbasefwd. symmetry. exact (forward_of_ninfos_eq ninfos0 ft a r). }
   unfold DistributedHardwareSemantics.run_ninfos, DistributedHardwareSemantics.node_prog, DistributedHardwareSemantics.node_tries.
-  (* operational run with [forward_from_ninfos] == with [forward_of_ninfos] (pointwise equal) ... *)
-  apply (iff_trans
-           (DistributedHardwareSemantics.hw_run_output_forward_ext
-              (fun n => (find_ninfo (attach_forwarding_tables ninfos0 ft) n).(nprogram))
-              (fun n => (find_ninfo (attach_forwarding_tables ninfos0 ft) n).(ntries))
-              (DistributedHardwareSemantics.forward_from_ninfos (attach_forwarding_tables ninfos0 ft))
-              (forward_of_ninfos (attach_forwarding_tables ninfos0 ft))
-              (base.(DistributedDatalog.input)) (base.(DistributedDatalog.output)) f
-              (fun _ _ => eq_refl))).
-  (* ... == network derivability of the [ninfos]-forwarded net ... *)
+  (* the operational run == network derivability of the [ninfos]-forwarded net ... *)
   apply (iff_trans
            (hw_run_output_iff_network (dnet_of_ninfos (attach_forwarding_tables ninfos0 ft) base)
               (fun n => (find_ninfo (attach_forwarding_tables ninfos0 ft) n).(nprogram))

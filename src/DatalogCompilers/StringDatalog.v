@@ -7,7 +7,6 @@ From DatalogRocq Require Import DistributedDatalogToHardwareCompiler StringDatal
 From coqutil Require Import Map.Interface Map.SortedListString.
 Import StringDatalogParams.
 
-(* Variables and functions are strings; these are the variable-keyed maps the compiler needs. *)
-#[global] Instance var_node_set : map.map _ _ := SortedListString.map unit.
-#[global] Instance var_edge_set : map.map _ _ := SortedListString.map (SortedListString.map unit).
-#[global] Instance var_idx_map : map.map _ _ := SortedListString.map nat.
+(* Variables and functions are strings; string-keyed sorted-list maps resolve for all of them. *)
+Existing Instance SortedListString.map.
+Existing Instance SortedListString.ok.

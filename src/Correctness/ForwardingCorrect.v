@@ -5,30 +5,28 @@
    the compiled network's own forwarding tables. *)
 
 From Stdlib Require Import List Bool Lia PeanoNat.
-From coqutil Require Import Map.Interface Map.Properties Datatypes.ListSet Eqb.
+From coqutil Require Import Map.Interface Map.Properties Datatypes.List Datatypes.ListSet Eqb.
 From Datalog.Util Require Import Map Default.
-From DatalogRocq Require Import DistributedDatalogToHardwareCompiler HardwareProgram DistributedHardwareProgram ComputableGraph.
+From DatalogRocq Require Import Topologies.Graph DistributedDatalogToHardwareCompiler HardwareProgram DistributedHardwareProgram ComputableGraph.
 Import ListNotations.
 
 Section ForwardingCorrect.
 
-Context {node_id : Type}.
+Context {node_id : node_idT}.
 Context {node_id_eqb : Eqb node_id} {node_id_eqb_ok : Eqb_ok node_id_eqb}.
 Context {node_id_set : map.map node_id unit} {node_id_set_ok : map.ok node_id_set}.
 Context {node_id_edge_set : map.map node_id node_id_set} {node_id_edge_set_ok : map.ok node_id_edge_set}.
 
 Abbreviation node_graph := (@ComputableGraph.ComputableGraph node_id node_id_set node_id_edge_set).
 
-Abbreviation destination := (@DistributedHardwareProgram.destination node_id).
 Context {forwarding_table : map.map rel_id (list destination)}
         {forwarding_table_ok : map.ok forwarding_table}.
 Context {node_ftable_map : map.map node_id forwarding_table}
         {node_ftable_map_ok : map.ok node_ftable_map}.
 
-Abbreviation node_info := (@DistributedHardwareProgram.node_info node_id forwarding_table).
 Abbreviation get_node_ftable node ftables := (get_or_default ftables node).
-Abbreviation add_trie_dest := (@DistributedDatalogToHardwareCompiler.add_trie_dest_to_forwarding_table node_id node_id_eqb forwarding_table node_ftable_map).
-Abbreviation add_path := (@DistributedDatalogToHardwareCompiler.add_path_to_forwarding_table node_id node_id_eqb forwarding_table node_ftable_map).
+Abbreviation add_trie_dest := DistributedDatalogToHardwareCompiler.add_trie_dest_to_forwarding_table.
+Abbreviation add_path := DistributedDatalogToHardwareCompiler.add_path_to_forwarding_table.
 
 (* the [DestEdge] targets among a destination list *)
 Definition dest_edges (ds : list destination) : list node_id :=
@@ -286,15 +284,6 @@ Proof.
   - exact (Hwalk i node m Hi Hib).
 Qed.
 
-(* adding trie destinations keeps the table edge-sound *)
-Lemma add_trie_pres_sound (g : node_graph) (node0 : node_id) (rel : rel_id) (ninfos : list node_info)
-    (ftables : node_ftable_map) :
-  ftable_edges_sound g ftables ->
-  ftable_edges_sound g (add_trie_dest node0 rel ftables ninfos).
-Proof.
-  intros Hsound node rel0 m H. apply add_trie_edges in H. exact (Hsound node rel0 m H).
-Qed.
-
 (* the compiler assembles a relation's routing as [add_paths_to_forwarding_table] = a [fold_left]
    of [add_path] over the paths [get_path] found; lift the per-path facts to the whole fold. *)
 Lemma add_paths_mono (rel : rel_id) (ninfos : list node_info) (paths : list (list node_id))
@@ -335,84 +324,15 @@ Proof.
   - apply IH. exact Hin.
 Qed.
 
-(* generic combinators that lift a per-step preservation through the two fold shapes the
-   compiler uses to assemble the whole forwarding table: a [map.fold] over producer/consumer
-   node-sets, and a [fold_left] over the relation ids. *)
-Lemma map_fold_pres_sound {K Vv : Type} {M : map.map K Vv} {Mok : map.ok M}
-    (g : node_graph) (f : node_ftable_map -> K -> Vv -> node_ftable_map) (init : node_ftable_map) (mp : M) :
-  ftable_edges_sound g init ->
-  (forall ft k v, ftable_edges_sound g ft -> ftable_edges_sound g (f ft k v)) ->
-  ftable_edges_sound g (map.fold f init mp).
-Proof.
-  intros Hinit Hstep.
-  apply (map.fold_spec (fun _ r => ftable_edges_sound g r)).
-  - exact Hinit.
-  - intros k v m r _ Hr. apply Hstep. exact Hr.
-Qed.
-
-Lemma fold_left_pres_sound {A : Type} (g : node_graph) (f : node_ftable_map -> A -> node_ftable_map)
-    (l : list A) (init : node_ftable_map) :
-  ftable_edges_sound g init ->
-  (forall acc x, ftable_edges_sound g acc -> ftable_edges_sound g (f acc x)) ->
-  ftable_edges_sound g (fold_left f l init).
-Proof.
-  revert init. induction l as [|x l IH]; intros init Hinit Hstep; cbn; [exact Hinit|].
-  apply IH; [apply Hstep; exact Hinit | exact Hstep].
-Qed.
-
 (*============================================================================*)
 (*  Phase C2 (completeness engine): a forwarding edge laid down by some step    *)
 (*  of the construction survives to the final table.  Generic over an arbitrary *)
 (*  monotone table-predicate [P] (instantiated with [fun ft => has_fwd_edge     *)
-(*  ft a r b] at the use site), so the same combinators thread both the         *)
-(*  [map.fold] over producer/consumer node-sets and the [fold_left] over rels.  *)
+(*  ft a r b] at the use site), threaded through the [fold_left] over rels.     *)
 (*============================================================================*)
 
-(* a monotone [P] is preserved through a [map.fold] (dual of [map_fold_pres_sound]) *)
-Lemma map_fold_pres {K Vv : Type} {M : map.map K Vv} {Mok : map.ok M}
-    (P : node_ftable_map -> Prop) (f : node_ftable_map -> K -> Vv -> node_ftable_map)
-    (init : node_ftable_map) (mp : M) :
-  P init ->
-  (forall ft k v, P ft -> P (f ft k v)) ->
-  P (map.fold f init mp).
-Proof.
-  intros Hinit Hstep.
-  apply (map.fold_spec (fun _ r => P r)); [exact Hinit | intros k v m r _ Hr; apply Hstep, Hr].
-Qed.
-
-Lemma fold_left_pres {A : Type} (P : node_ftable_map -> Prop) (f : node_ftable_map -> A -> node_ftable_map)
-    (l : list A) (init : node_ftable_map) :
-  P init ->
-  (forall acc x, P acc -> P (f acc x)) ->
-  P (fold_left f l init).
-Proof.
-  revert init. induction l as [|x l IH]; intros init Hinit Hstep; cbn; [exact Hinit|].
-  apply IH; [apply Hstep; exact Hinit | exact Hstep].
-Qed.
-
-(* if some key [k0] in [mp] has a step that always establishes [P], and every step is
-   monotone for [P], then the whole [map.fold] establishes [P] (over [node_id] keys, using
-   [node_id_eqb] to locate [k0]). *)
-Lemma nid_fold_adds {Vv : Type} {M : map.map node_id Vv} {Mok : map.ok M}
-    (P : node_ftable_map -> Prop) (f : node_ftable_map -> node_id -> Vv -> node_ftable_map)
-    (init : node_ftable_map) (mp : M) (k0 : node_id) (v0 : Vv) :
-  map.get mp k0 = Some v0 ->
-  (forall ft k v, P ft -> P (f ft k v)) ->
-  (forall ft, P (f ft k0 v0)) ->
-  P (map.fold f init mp).
-Proof.
-  intros Hget Hmono Hk0.
-  refine (map.fold_spec (fun (m' : M) (acc : node_ftable_map) => map.get m' k0 = Some v0 -> P acc)
-            f init _ _ mp Hget).
-  - intros Hc. rewrite map.get_empty in Hc. discriminate.
-  - intros k v m r Hmk IH Hget'.
-    destruct (node_id_eqb_spec k k0) as [->|Hne].
-    + rewrite map.get_put_same in Hget'. injection Hget' as <-. apply Hk0.
-    + rewrite map.get_put_diff in Hget' by (intro; subst; apply Hne; reflexivity).
-      apply Hmono, IH, Hget'.
-Qed.
-
-(* the [fold_left] analogue: some element [x0] of [l] has a step that always establishes [P]. *)
+(* if some element [x0] of [l] has a step that always establishes [P], and every step is
+   monotone for [P], then the whole [fold_left] establishes [P]. *)
 Lemma fold_left_adds {A : Type} (P : node_ftable_map -> Prop) (f : node_ftable_map -> A -> node_ftable_map)
     (l : list A) (init : node_ftable_map) (x0 : A) :
   In x0 l ->
@@ -423,7 +343,7 @@ Proof.
   intros Hin Hmono Hx0. revert init Hin.
   induction l as [|x l IH]; intros init Hin; cbn; [destruct Hin|].
   destruct Hin as [-> | Hin].
-  - apply fold_left_pres; [apply Hx0 | exact Hmono].
+  - apply fold_left_inv; [apply Hx0 | intros acc x _; apply Hmono].
   - apply (IH (f init x) Hin).
 Qed.
 

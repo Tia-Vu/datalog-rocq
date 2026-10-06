@@ -84,9 +84,6 @@ Proof. vm_compute. reflexivity. Qed.
 (*  type), so we instantiate the run with [nat] values for readability.       *)
 (*==========================================================================*)
 
-#[local] Instance nat_value_set : map.map (list nat) unit :=
-  @SortedListList.map nat Nat.ltb SortedListNat.Nat_strict_order unit.
-
 Abbreviation nat_fact := (Datalog.fact (_rel := rel_id) (_value := nat)).
 
 Definition factA : nat_fact := fact.normal {| normal_fact.rel := 1; normal_fact.args := [7; 8] |}.  (* A(7,8) *)
@@ -182,7 +179,7 @@ Proof. rewrite tries_generated, rule_generated. exact J_in_node_run. Qed.
 (*==========================================================================*)
 
 (* The compiler's whole output -- here a one-element [ninfos] for node (0,0). *)
-Definition ninfos : list (@node_info node_id (SortedListNat.map (list destination))) :=
+Definition ninfos : list (@node_info node_id _) :=
   match jcompiled with Result.Success l => l | _ => [] end.
 
 Definition node00 : node_id := [0; 0]%nat.
@@ -197,13 +194,13 @@ Definition doutput : node_id -> rel_id -> Prop :=
 (* The distributed operational semantics, run on the compiled [ninfos], parks J(7,8) at the
    output node.  Steps: deliver A, deliver B, then the node runs its hardware program. *)
 Example J_run_distributed :
-  @run_ninfos nat _ _ node_id _ (SortedListNat.map (list destination))
+  @run_ninfos nat _ _ node_id _ _
              ninfos dinput doutput factJ.
 Proof.
   (* the compiled node's tries / trie-join program are exactly our literals *)
-  assert (HTr : @node_tries node_id _ (SortedListNat.map (list destination))
+  assert (HTr : @node_tries node_id _ _
                   ninfos node00 = tries) by (vm_compute; reflexivity).
-  assert (HP  : @node_prog  node_id _ (SortedListNat.map (list destination))
+  assert (HP  : @node_prog  node_id _ _
                   ninfos node00 = hp)    by (vm_compute; reflexivity).
   unfold run_ninfos, hw_run_output.
   (* the answer lives at node (0,0), in the config reached after delivering A,B and running *)
@@ -214,10 +211,12 @@ Proof.
     eapply dreachS; [eapply dreachS; [eapply dreachS; [apply dreach0 |] |] |].
     + apply dstep_input. split; [reflexivity | left;  reflexivity].
     + apply dstep_input. split; [reflexivity | right; reflexivity].
-    + (* the node runs and derives J from the A,B it now holds *)
-      apply dstep_run. rewrite HTr, HP. apply node_run_from.
-      * (* A(7,8) is present *) unfold cadd. left; right; split; reflexivity.
-      * (* B(8,7) is present *) unfold cadd. right; split; reflexivity.
+    + (* the node fires its one rule on the A,B it now holds *)
+      eapply dstep_run with (hyps := [factA; factB]).
+      * rewrite HTr, HP. apply Exists_cons_hd. exact J_fires.
+      * apply Forall_cons; [| apply Forall_cons; [| apply Forall_nil]].
+        -- (* A(7,8) is present *) unfold cadd. left; right; split; reflexivity.
+        -- (* B(8,7) is present *) unfold cadd. right; split; reflexivity.
   - (* J(7,8) is present at node (0,0) *) unfold cadd. right; split; reflexivity.
   - (* node (0,0) is the output sink for J (relation 2) *) split; reflexivity.
 Qed.

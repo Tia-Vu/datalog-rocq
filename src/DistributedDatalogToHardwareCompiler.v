@@ -2,7 +2,7 @@ From Stdlib Require Import String List Bool ZArith.
 From coqutil Require Import Datatypes.List Datatypes.ListSet Map.Interface Map.Properties Result Eqb.
 From Datalog Require Import Datalog Interpreter.
 From Datalog.Util Require Import List Map Default.
-From DatalogRocq Require Import DependencyGenerator SortedListNat ComputableGraph.
+From DatalogRocq Require Import Topologies.Graph DependencyGenerator SortedListNat ComputableGraph.
 From DatalogRocq Require Export HardwareProgram DistributedHardwareProgram.
 
 Open Scope result_monad_scope.
@@ -15,20 +15,14 @@ Section DistributedDatalogToHardwareCompiler.
 
 Context {var : exprvarT} {fn : fnT} {aggregator : aggregatorT}.
 Context {var_eqb : Eqb var} {fn_eqb : Eqb fn}.
-Context {node_id : Type} {node_id_eqb : Eqb node_id}.
+Context {node_id : node_idT} {node_id_eqb : Eqb node_id}.
 
 #[local] Existing Instance rel_id.
-
-Abbreviation destination := (@DistributedHardwareProgram.destination node_id).
 
 Context {node_id_set : map.map node_id unit}.
 Context {forwarding_table : map.map rel_id (list destination)}.
 Context {layout_map : map.map node_id lowered_program}.
 Context {fact_locations : map.map rel_id (list node_id)}.
-
-(* [node_info] now lives in [DistributedHardwareProgram] (the distributed AST); this is the
-   compiler's view of it, with the topology's [node_id] and forwarding-table map fixed. *)
-Abbreviation node_info := (@DistributedHardwareProgram.node_info node_id forwarding_table).
 
 Record node_context := {
   nctries : list trie;
@@ -544,10 +538,6 @@ Definition compile (layout : layout_map)
   let ftables := generate_forwarding_table g ninfos all_producers_of all_consumers_of in
   Success (attach_forwarding_tables ninfos ftables).
 End DistributedDatalogToHardwareCompiler.
-
-Existing Instance SortedListNat.map.
-From coqutil Require Import SortedListString.
-Existing Instance SortedListString.map.
 
 Compute compute_permutation [2;3;1;1] [1;2;3].
 Compute generate_join

@@ -1,3 +1,7 @@
+Definition node_idT := Type.
+Existing Class node_idT.
+#[global] Typeclasses Transparent node_idT.
+
 Section Graph.
   
   Context {Node : Type}.

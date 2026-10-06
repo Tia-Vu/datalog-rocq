@@ -4,7 +4,7 @@
 
    The headline theorem [DistributedDatalogToHardwareCompilerCorrect.nattify_and_compile_correct] is
    stated generically (over arbitrary map instances).  Here we:
-     1. pin every instance to the string-datalog / grid-topology backend ([grid_equiv]);
+     1. instantiate it at the string-datalog / grid-topology backend (its maps are inferred);
      2. give a concrete program  J(x,y) :- A(x,y), B(y,x)  and a one-node indexed layout;
      3. run the compiler ([compiled_J]) and show it SUCCEEDS;
      4. discharge the boolean side checks [bare_layoutb] / [layout_distributes_programb] by [vm_compute];
@@ -44,39 +44,7 @@ Proof. exact (@SortedListList.ok string String.ltb SortedListString.string_stric
 
 Local Abbreviation rules_only p := {| program.rules := p; program.meta_rules := [] |}.
 
-Abbreviation node_id     := GridGraph.Node.
-Abbreviation destination := (@DistributedHardwareProgram.destination node_id).
-
-(*==========================================================================*)
-(*  [grid_equiv]: [nattify_and_compile_correct] with every instance pinned to  *)
-(*  the string-datalog / grid-topology backend.  A reusable, instance-free    *)
-(*  statement quantified only over the program / layout / facts.              *)
-(*==========================================================================*)
-
-Definition grid_equiv :=
-  @nattify_and_compile_correct
-    string string unit string
-    sig_src
-    (SortedListString.map string) (SortedListString.ok string)
-    _ _ value_set_src value_set_src_ok
-    _ _ _ _
-    StringDatalog.var_idx_map  (SortedListString.ok nat)
-    StringDatalog.var_node_set (SortedListString.ok unit)
-    StringDatalog.var_edge_set
-    node_id _ _
-    (GridTopology.node_id_map unit)
-    (GridTopology.node_id_map (GridTopology.node_id_map unit))
-    (SortedListNat.map (list destination))
-    (GridTopology.node_id_map (list (lowered_rule))) (GridTopology.node_id_map_ok _)
-    (GridTopology.node_id_map (SortedListNat.map (list destination)))
-    (SortedListNat.map (list node_id)) (SortedListNat.ok _)
-    (GridTopology.node_id_map (list rel_id))
-    (GridTopology.node_id_map_ok _)
-    (SortedListNat.ok _)
-    (GridTopology.node_id_map_ok _)
-    (GridTopology.node_id_map_ok _)
-    (GridTopology.node_id_map_ok _)
-    string _ _.
+Abbreviation node_id := GridGraph.Node.
 
 (*==========================================================================*)
 (*  The concrete program and indexed layout.                                  *)
@@ -111,14 +79,14 @@ Example check_distributes : layout_distributes_programb (nattify_rel_prog (progr
 Proof. vm_compute; reflexivity. Qed.
 
 (*==========================================================================*)
-(*  THE END-TO-END EQUIVALENCE, via [grid_equiv] ([nattify_and_compile_correct]  *)
-(*  pinned to this backend): the distributed run of the compiled network parks   *)
+(*  THE END-TO-END EQUIVALENCE, via [nattify_and_compile_correct]: the         *)
+(*  distributed run of the compiled network parks                                *)
 (*  the nattified [fsrc] at an output node  iff  the SOURCE program [P] derives   *)
 (*  [fsrc].  Compiler success is a hypothesis (witnessed cheaply by [compiled_J_ok]). *)
 (*==========================================================================*)
 Opaque compile.
 Theorem end_to_end_equiv
-    (ninfos : list (@DistributedHardwareProgram.node_info node_id (SortedListNat.map (list destination))))
+    (ninfos : list (@DistributedHardwareProgram.node_info node_id _))
     (Qsrc : Datalog.fact -> Prop) (fsrc : Datalog.fact) :
   compile_program P idx_layout FPS FPS topo = Success ninfos ->
   (forall f, Qsrc f -> In (fact.rel f) (program_rels P)) ->
@@ -132,19 +100,16 @@ Theorem end_to_end_equiv
   <-> program.interp (rules_only P) Qsrc fsrc.
 Proof.
   intros Hc Hscope Hedb Houtrel.
-  apply (grid_equiv P NLAYOUT NFPS NFPS G ninfos Qsrc fsrc Hc);
-    [ vm_compute; reflexivity
-    | apply layout_distributes_programb_spec; vm_compute; reflexivity
-    | exact Hscope
-    | exact Hedb
-    | exact Houtrel ].
+  eapply nattify_and_compile_correct; try eassumption.
+  - vm_compute; reflexivity.
+  - apply layout_distributes_programb_spec. vm_compute; reflexivity.
 Qed.
 
 (*==========================================================================*)
 (*  A SECOND, two-rule example: transitive closure, distributed over 2 nodes. *)
 (*     Path(x, y) :- Edge(x, y).                                               *)
 (*     Path(x, z) :- Edge(x, y), Path(y, z).                                   *)
-(*  [grid_equiv] is program/layout-agnostic, so it is reused verbatim.         *)
+(*  [nattify_and_compile_correct] applies to it unchanged.                    *)
 (*==========================================================================*)
 Definition Path (x y : string) : @Datalog.clause string string string :=
   {| Datalog.clause.rel := "Path"; Datalog.clause.args := [Datalog.expr.var x; Datalog.expr.var y] |}.
@@ -172,7 +137,7 @@ Example check_distributes_r : layout_distributes_programb (nattify_rel_prog (pro
 Proof. vm_compute; reflexivity. Qed.
 
 Theorem end_to_end_equiv_reach
-    (ninfos : list (@DistributedHardwareProgram.node_info node_id (SortedListNat.map (list destination))))
+    (ninfos : list (@DistributedHardwareProgram.node_info node_id _))
     (Qsrc : Datalog.fact -> Prop) (fsrc : Datalog.fact) :
   compile_program Preach idx_layout_r FPS_r FPS_r topo_r = Success ninfos ->
   (forall f, Qsrc f -> In (fact.rel f) (program_rels Preach)) ->
@@ -186,10 +151,7 @@ Theorem end_to_end_equiv_reach
   <-> program.interp (rules_only Preach) Qsrc fsrc.
 Proof.
   intros Hc Hscope Hedb Houtrel.
-  apply (grid_equiv Preach NLAYOUT_r NFPS_r NFPS_r G_r ninfos Qsrc fsrc Hc);
-    [ vm_compute; reflexivity
-    | apply layout_distributes_programb_spec; vm_compute; reflexivity
-    | exact Hscope
-    | exact Hedb
-    | exact Houtrel ].
+  eapply nattify_and_compile_correct; try eassumption.
+  - vm_compute; reflexivity.
+  - apply layout_distributes_programb_spec. vm_compute; reflexivity.
 Qed.

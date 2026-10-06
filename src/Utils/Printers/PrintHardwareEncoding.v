@@ -1,7 +1,7 @@
 From JSON Require Import Encode Printer.
 From Stdlib Require Import String List ZArith.
 From coqutil Require Import Map.Interface Result.
-From DatalogRocq Require Import HardwareProgram DistributedHardwareProgram.
+From DatalogRocq Require Import Topologies.Graph HardwareProgram DistributedHardwareProgram.
 
 (* Generic JSON encoders for the compiled hardware-program AST.
 
@@ -11,14 +11,10 @@ From DatalogRocq Require Import HardwareProgram DistributedHardwareProgram.
 
 Section PrintHardwareEncoding.
 
-Context {node_id : Type}.
+Context {node_id : node_idT}.
 Context `{JEncode node_id}.
 
-Abbreviation destination := (@DistributedHardwareProgram.destination node_id).
-
 Context {forwarding_table : map.map rel_id (list destination)}.
-
-Abbreviation node_info := (@DistributedHardwareProgram.node_info node_id forwarding_table).
 
 #[global] Instance JEncode__pair A B `{JEncode A} `{JEncode B} : JEncode (A * B) :=
   fun '(a, b) => JSON__Array [encode a; encode b].

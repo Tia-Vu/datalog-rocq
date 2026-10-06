@@ -11,23 +11,19 @@
 From Stdlib Require Import List ZArith.
 From DatalogRocq Require Import DistributedDatalogToHardwareCompiler GridGraph SortedListList SortedListNat ComputableGraph.
 From coqutil Require Import Map.Interface.
+From Datalog.Util Require Import Map.
 Import ListNotations.
-
-#[global] Instance node_id_map T : map.map Node T := @SortedListList.map nat Nat.ltb SortedListNat.Nat_strict_order T.
-
-Lemma node_id_map_ok T : map.ok (node_id_map T).
-Proof. exact (@SortedListList.ok nat Nat.ltb SortedListNat.Nat_strict_order T). Qed.
 
 (* Build the grid topology graph (node set + neighbor edges) from dimensions.  Since a node id
    *is* its coordinate list, there is no destructuring/reassembly. *)
-Definition build_topo_node_set (dims : GridGraph.Dimensions) : node_id_map unit :=
+Definition build_topo_node_set (dims : GridGraph.Dimensions) : partial_map Node unit :=
   List.fold_left
     (fun acc n => map.put acc n tt)
     (GridGraph.all_nodes_h dims)
     map.empty.
 
 Definition build_topo_edge_set (dims : GridGraph.Dimensions)
-    : node_id_map (node_id_map unit) :=
+    : partial_map Node (partial_map Node unit) :=
   let nodes := GridGraph.all_nodes_h dims in
   List.fold_left
     (fun acc n =>
@@ -38,7 +34,6 @@ Definition build_topo_edge_set (dims : GridGraph.Dimensions)
       map.put acc n neighbor_map)
     nodes map.empty.
 
-Definition make_topo_graph (dims : GridGraph.Dimensions)
-    : @ComputableGraph Node (node_id_map unit) (node_id_map (node_id_map unit)) :=
+Definition make_topo_graph (dims : GridGraph.Dimensions) : ComputableGraph Node :=
   {| nodes := build_topo_node_set dims;
      edges := build_topo_edge_set dims |}.
