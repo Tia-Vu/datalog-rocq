@@ -1,5 +1,4 @@
-(* JSON encoders for the *source* Datalog AST (expr / clause / rule), plus a
-   generic pair encoder used for dependency lists (list (nat * nat)).
+(* JSON encoders for the *source* Datalog AST (expr / clause / rule).
 
    Factored out of PrintPrograms.v so the encoders can be reused without pulling in the example
    programs or running any Redirects: PrintPrograms.v imports this to dump the bundled examples,
@@ -8,6 +7,7 @@
    how PrintHardwareEncoding.v provides encoders for the compiled hardware AST. *)
 From JSON Require Import Encode Printer.
 From Datalog Require Import Datalog.
+From Datalog.Util Require Export JSON.
 From Stdlib Require Import List String.
 Import ListNotations.
 
@@ -38,7 +38,3 @@ Fixpoint encode_dexpr (e : Datalog.expr) : json :=
         JSON__Object [("concl_rel", encode cr); ("agg", encode agg); ("hyp_rel", encode hr)])]
   end.
 End SourceEncoders.
-
-(* coq-json ships no pair instance; dependency-generator output is list (nat * nat). *)
-#[global] Instance JEncode__pair {A B} `{JEncode A} `{JEncode B} : JEncode (A * B) :=
-  fun p => JSON__Array [encode (fst p); encode (snd p)].

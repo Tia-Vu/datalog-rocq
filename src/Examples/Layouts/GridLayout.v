@@ -1,12 +1,12 @@
-From Stdlib Require Import List Bool Lia.
+From Stdlib Require Import List Bool Lia Relation_Operators.
 From Datalog Require Import Datalog.
+From Datalog.Util Require Import List.
 From DatalogRocq Require Import DistributedDatalog Topologies.Graph GridGraph.
-From coqutil Require Import Map.Interface Eqb.
+From coqutil Require Import Map.Interface Eqb Tactics.fwd.
 Import ListNotations.
 
 Section GridLayout.
   Context `{params : datalog_params}.
-  Context {rule_eqb : Eqb rule} {rule_eqb_ok : Eqb_ok rule_eqb}.
 
   Definition mk_grid_graph (dims : list nat) : Graph := GridGraph dims.
 
@@ -58,6 +58,35 @@ Section GridLayout.
     - contradiction.
   Qed.
 
+  (*----------------------------------------------------------------------------*)
+  (* Decidable [good_layout] check, over a plain node enumeration [all_nodes]    *)
+  (* (no topology record): (1) every rule placed on an enumerated node is a      *)
+  (* program rule, and (2) every program rule is placed on some enumerated node. *)
+  (*----------------------------------------------------------------------------*)
+  Definition node_rules_okb (layout : Node -> list rule) (program : list rule) (n : Node) : bool :=
+    forallb (fun r => inb r program) (layout n).
+  Definition rule_in_layoutb (all_nodes : list Node) (layout : Node -> list rule) (r : rule) : bool :=
+    existsb (fun n => inb r (layout n)) all_nodes.
+  Definition good_layoutb (all_nodes : list Node) (layout : Node -> list rule) (program : list rule) : bool :=
+    forallb (node_rules_okb layout program) all_nodes &&
+    forallb (rule_in_layoutb all_nodes layout) program.
+
+  Lemma good_layoutb_sound (all_nodes : list Node) (nodes : Node -> Prop) (layout : Node -> list rule)
+      (program : list rule) :
+    (forall n, In n all_nodes <-> nodes n) ->
+    (forall n r, In r (layout n) -> nodes n) ->
+    good_layoutb all_nodes layout program = true ->
+    good_layout layout nodes program.
+  Proof.
+    intros Hspec Hvalid Hcheck. unfold good_layoutb in Hcheck. fwd.
+    rewrite Forall_forall in Hcheckp0, Hcheckp1. split.
+    - apply Forall_forall. intros r Hr. apply Hcheckp1 in Hr. cbv [rule_in_layoutb] in Hr. fwd.
+      eexists. split; [apply Hspec |]; eassumption.
+    - intros n r Hr. pose proof (Hvalid n r Hr) as Hn. split; [exact Hn |].
+      apply Hspec, Hcheckp0 in Hn. cbv [node_rules_okb] in Hn. fwd.
+      rewrite Forall_forall in Hn. apply Hn in Hr. fwd. assumption.
+  Qed.
+
 Theorem good_layout :
     forall dims indexed_layout program,
     good_layoutb (all_nodes_h dims) (mk_layout_from_indexed_layout dims indexed_layout program) program = true ->
@@ -69,58 +98,20 @@ Proof.
   - exact H.
 Qed.
 
-(* If n2 is a neighbor of n1, then forwarding reaches n2 in one step *)
-Lemma grid_forward_step :
-  forall dims n1 n2 r,
-    GridGraph.is_graph_node dims n1 ->
-    GridGraph.is_graph_node dims n2 ->
-    GridGraph.is_neighbor dims n1 n2 = true ->
-    forwarding_reachable (mk_always_forward_table dims) r n1 n2.
-Proof.
-  intros. apply fwd_step.
-  unfold mk_always_forward_table.
-  apply filter_In. split.
-  - apply all_nodes_correct. exact H0.
-  - exact H1.
-Qed.
-
-(* forwarding reachable is transitive *)
-Lemma forwarding_reachable_trans :
-  forall (fwd : ForwardingFn) (r : rel) (n1 n2 n3 : Node),
-    forwarding_reachable fwd r n1 n2 ->
-    forwarding_reachable fwd r n2 n3 ->
-    forwarding_reachable fwd r n1 n3.
-Proof.
-  intros fwd r n1 n2 n3 H12 H23.
-  induction H12.
-  - eapply fwd_trans; eauto.
-  - eapply fwd_trans; eauto.
-Qed.
-
 (* In GridLayout section, convert grid_reachable to forwarding_reachable *)
 Lemma grid_reachable_to_forwarding :
   forall dims0 r n1 n2,
     GridGraph.grid_reachable dims0 n1 n2 ->
-    n1 = n2 \/ forwarding_reachable (mk_always_forward_table dims0) r n1 n2.
+    forwarding_reachable (mk_always_forward_table dims0) r n1 n2.
 Proof.
   intros dims0 r n1 n2 Hreach.
   induction Hreach.
-  - left. reflexivity.
-  - right.
-    destruct IHHreach as [-> | Hfwd].
-    + (* n2 = n3, just one forwarding step *)
-      apply fwd_step.
-      unfold mk_always_forward_table.
-      apply filter_In. split.
-      * apply GridGraph.all_nodes_h_correct. inversion H; auto.
-      * apply GridGraph.is_neighbor_correct. exact H.
-    + (* n2 reaches n3, and n1 reaches n2 *)
-      eapply fwd_trans.
-      * unfold mk_always_forward_table.
-        apply filter_In. split.
-        -- apply GridGraph.all_nodes_h_correct. inversion H; eauto.
-        -- apply GridGraph.is_neighbor_correct. exact H.
-      * exact Hfwd.
+  - apply rt1n_refl.
+  - eapply rt1n_trans; [| exact IHHreach].
+    unfold forwards_rel, mk_always_forward_table.
+    apply filter_In. split.
+    + apply GridGraph.all_nodes_h_correct. inversion H; eauto.
+    + apply GridGraph.is_neighbor_correct. exact H.
 Qed.
 
 Lemma good_forwarding_complete_grid :
@@ -142,7 +133,7 @@ Proof.
   apply GridGraph.grid_connected; auto.
   - intros n_prod Hprod. exists n_prod. split.
     + simpl. unfold mk_all_output_fn. auto.
-    + left; auto.
+    + apply rt1n_refl.
 Qed.
 
 Lemma good_network :

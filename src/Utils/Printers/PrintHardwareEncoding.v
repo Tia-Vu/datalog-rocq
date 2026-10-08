@@ -1,7 +1,8 @@
 From JSON Require Import Encode Printer.
 From Stdlib Require Import String List ZArith.
 From coqutil Require Import Map.Interface Result.
-From DatalogRocq Require Import HardwareProgram DistributedHardwareProgram.
+From Datalog.Util Require Export JSON.
+From DatalogRocq Require Import Topologies.Graph HardwareProgram DistributedHardwareProgram.
 
 (* Generic JSON encoders for the compiled hardware-program AST.
 
@@ -11,17 +12,9 @@ From DatalogRocq Require Import HardwareProgram DistributedHardwareProgram.
 
 Section PrintHardwareEncoding.
 
-Context {node_id : Type}.
+Context {node_id : node_idT}.
 Context `{JEncode node_id}.
-
-Abbreviation destination := (@DistributedHardwareProgram.destination node_id).
-
-Context {forwarding_table : map.map rel_id (list destination)}.
-
-Abbreviation node_info := (@DistributedHardwareProgram.node_info node_id forwarding_table).
-
-#[global] Instance JEncode__pair A B `{JEncode A} `{JEncode B} : JEncode (A * B) :=
-  fun '(a, b) => JSON__Array [encode a; encode b].
+Context {map_rel_id_fwd_from_list_fwd_to : map.map (rel_id * fwd_from) (list fwd_to)}.
 
 #[global] Instance JEncode__join : JEncode join :=
   fun j =>
@@ -39,14 +32,19 @@ Abbreviation node_info := (@DistributedHardwareProgram.node_info node_id forward
     JSON__Object [("hhyps", encode hr.(hhyps));
                 ("hconcls", encode hr.(hconcls))].
 
-#[global] Instance JEncode__destination : JEncode destination := fun d =>
-  match d with
-  | DestEdge e => JSON__Object [("DestEdge", encode e)]
-  | DestTrie t => JSON__Object [("DestTrie", encode t)]
+#[global] Instance JEncode__fwd_from : JEncode fwd_from := fun src =>
+  match src with
+  | fwd_from.input => JSON__String "input"
+  | fwd_from.self => JSON__String "self"
+  | fwd_from.node n ch => JSON__Object [("node", JSON__Object [("id", encode n); ("channel", encode ch)])]
   end.
 
-#[global] Instance JEncode_forwarding_table : JEncode forwarding_table :=
-  fun m => encode (map.fold (fun acc k v => (k, v) :: acc) [] m).
+#[global] Instance JEncode__fwd_to : JEncode fwd_to := fun dst =>
+  match dst with
+  | fwd_to.output => JSON__String "output"
+  | fwd_to.self => JSON__String "self"
+  | fwd_to.node n ch => JSON__Object [("node", JSON__Object [("id", encode n); ("channel", encode ch)])]
+  end.
 
 #[global] Instance JEncode__trie : JEncode trie :=
   fun t =>
@@ -66,13 +64,6 @@ Abbreviation node_info := (@DistributedHardwareProgram.node_info node_id forward
   match r with
   | Success a => encode a
   | Failure _ => JSON__String "Failed to compile"
-  end.
-
-#[global] Instance JEncode__sum {A B} `{JEncode A} `{JEncode B} : JEncode (A + B) :=
-  fun ab =>
-  match ab with
-  | inl a => JSON__Object [("inl", encode a)]
-  | inr b => JSON__Object [("inr", encode b)]
   end.
 
 End PrintHardwareEncoding.
