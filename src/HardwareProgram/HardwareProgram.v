@@ -23,7 +23,7 @@ Definition trie_id := nat.
 
 Module trie_hyp.
   Record trie_hyp := {
-      name : trie_id;
+      trie : trie_id;
       var_set : list var_idx;
     }.
 End trie_hyp. Abbreviation trie_hyp := trie_hyp.trie_hyp.
