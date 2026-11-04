@@ -33,20 +33,20 @@ Module fwd_to.
 End fwd_to. Export (hints) fwd_to. Abbreviation fwd_to := fwd_to.fwd_to.
 #[export] Register Scheme fwd_to.eqb as beq for fwd_to.fwd_to.
 
-Section DistributedHardwareProgram.
+Definition forwarding_table {node_id : node_idT} {mp : map.map (rel_id * fwd_from) (list fwd_to)} :=
+  partial_map (rel_id * fwd_from) (list fwd_to).
+
+Module node_info.
+  Section __.
   Context {node_id : node_idT}.
   Context {_fwd_tbl : map.map (rel_id * fwd_from) (list fwd_to)}.
+  Context {map_trie_id_trie : map.map trie_id trie}.
 
-  Definition forwarding_table := partial_map (rel_id * fwd_from) (list fwd_to).
-
-  (* A compiled node's program: its trie-join rules ([nprogram]), the tries they read ([ntries]),
-   and the forwarding table ([nforwarding]).  This is the per-node piece of the *distributed*
-   hardware program; the compiler ([DistributedDatalogToHardwareCompiler]) is what produces it. *)
   Record node_info := {
-      nid : node_id;
-      nprogram : hardware_program;
-      nforwarding : forwarding_table;
-      ntries : list trie;
+      id : node_id;
+      program : list trie_rule;
+      forwarding : forwarding_table;
+      tries : partial_map trie_id trie;
     }.
-
-End DistributedHardwareProgram.
+  End __.
+End node_info. Abbreviation node_info := node_info.node_info.
