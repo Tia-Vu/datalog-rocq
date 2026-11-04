@@ -7,22 +7,14 @@
    [join]s, one per variable in the rule's variable ordering; each join intersects
    a set of tries (stored, column-permuted relations) at a given level.
 
-   This file gives that hardware representation a *declarative* semantics on a single node
-   ([hw_prog_impl_fact]) and defines what it means for it to be correct: a node *implements*
-   an ordinary [Datalog] program [P] (over the numeric ids the hardware uses) when the two
-   derive exactly the same facts ([node_implements]).
-
-       hardware_program  --(hw_prog_impl_fact)-->  facts
-              ||  node_implements                     ||
-          [Datalog] program P  --(program.interp)-->  facts
-
-   [hw_node_correct] reduces this to a per-rule bridge [hw_rule_matches].  NodeHardwareSemantics is
+   This file gives that hardware representation a *declarative* single-rule semantics
+   ([hw_rule_impl]) and defines what it means for a hardware rule to be correct for an ordinary
+   [Datalog] rule over the numeric ids the hardware uses ([hw_rule_matches]).  NodeHardwareSemantics is
    compiler-agnostic: it never mentions the compiler's [lowered_rule] AST.  Proving a *compiled*
    hardware program implements its source program is the job of [DistributedDatalogToHardwareCompilerCorrect]; the
    distributed version is [DistributedHardwareSemantics]. *)
 
 From Datalog Require Import Datalog.
-From Datalog.Util Require Import Pftree.
 From Stdlib Require Import List Bool ZArith.
 From coqutil Require Import Datatypes.List Map.Interface Map.Properties Eqb.
 From DatalogRocq Require Import HardwareProgram.
@@ -181,39 +173,9 @@ Definition hw_rule_impl (tries : list trie) (hr : hardware_rule)
     query_sat tries hr.(hhyps) vals hyps' /\
     exists jo, In jo hr.(hconcls) /\ join_output_fact vals jo = Some nf.
 
-(* One hardware derivation step at the fact level, mirroring [program.interp_step]: some rule of
-   [hp] concludes the normal fact [nf] from [hyps']. *)
-Variant hw_step (tries : list trie) (hp : hardware_program) : dl_fact -> list dl_fact -> Prop :=
-  | hw_rule_step nf hyps' :
-    Exists (fun hr => hw_rule_impl tries hr nf hyps') hp ->
-    hw_step tries hp (fact.normal nf) hyps'.
-
-(* THE SINGLE-NODE RUN: from a set of input/base facts [inputs] delivered to this node, the hardware
-   program [hp] (with trie table [tries]) derives more facts -- the proof-tree closure where every
-   internal node fires some hardware rule and every leaf is an input fact.  "Run the node's program
-   on its inputs." *)
-Definition node_run (tries : list trie) (hp : hardware_program) (inputs : dl_fact -> Prop)
-  : dl_fact -> Prop :=
-  pftree (hw_step tries hp) inputs.
-
-(* The proof-tree closure, mirroring [program.interp] with an empty EDB
-   ([Q := fun _ => False]): a fact is hardware-derivable iff it is the root of a
-   proof tree whose every node fires some hardware rule.  ([node_run] with no inputs.) *)
-Definition hw_prog_impl_fact (tries : list trie) (hp : hardware_program)
-  : dl_fact -> Prop :=
-  node_run tries hp (fun _ => False).
-
 (*============================================================================*)
 (*  Correctness: trie-join semantics vs. datalog semantics                    *)
 (*============================================================================*)
-
-(* The single-node correctness notion: a hardware program [hp] (with trie table [tries])
-   running on one node *implements* the datalog program [P] when, fact-for-fact, the trie-join
-   derives exactly what [P] derives.  [P] is an ordinary [Datalog] program over the numeric ids
-   the hardware uses -- no compiler AST involved. *)
-Definition node_implements (tries : list trie) (hp : hardware_program) (P : dl_program) : Prop :=
-  forall f, hw_prog_impl_fact tries hp f <->
-         program.interp {| program.rules := P; program.meta_rules := [] |} (fun _ => False) f.
 
 (* Per-rule bridge: hardware rule [hr] (with trie table [tries]) is *correct* for datalog rule
    [r] when, fact-for-fact, the trie-join produces exactly what [r] produces.  Everything else
@@ -231,21 +193,6 @@ Proof.
   intros HF. induction HF as [| r hr P' hp' Hmatch HF IH]; simpl.
   - split; intros HE; inversion HE.
   - rewrite !Exists_cons. rewrite IH, (Hmatch nf hyps'). reflexivity.
-Qed.
-
-(* MODULAR CORRECTNESS (fully proved): if every hardware rule matches its datalog rule, the
-   whole node's trie-join semantics derives exactly the datalog program's facts -- i.e. the
-   node implements [P].  The deep work is thus isolated to the per-rule obligation. *)
-Theorem hw_node_correct (tries : list trie) (P : dl_program) (hp : hardware_program) :
-  Forall2 (hw_rule_matches tries) P hp ->
-  node_implements tries hp P.
-Proof.
-  intros HF f. cbv [node_implements hw_prog_impl_fact node_run].
-  apply pftree.step_ext. intros f' hyps'. split.
-  - intros [nf hyps'' Hex]. constructor. apply (matches_step tries P hp nf hyps'' HF). exact Hex.
-  - intros H. inversion H as [nf ? Hex | mf mhyps Hex]; subst.
-    + constructor. apply (matches_step tries P hp nf _ HF). exact Hex.
-    + inversion Hex.
 Qed.
 
 End NodeHardwareSemantics.

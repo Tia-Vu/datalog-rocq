@@ -4,8 +4,8 @@
    We take the source rule    J(x, y)  :-  A(x, y),  B(y, x)
    write it as a one-rule string-datalog program, COMPILE it with [compile_program] onto a 1x1
    grid, and read the generated tries / trie-join rule straight off the compiler's output.  Then
-   we run [NodeHardwareSemantics] on those generated tries and the inputs A(7,8), B(8,7), and
-   prove the node derives J(7,8).
+   we prove the generated rule derives J(7,8) from the inputs A(7,8), B(8,7), and that the
+   distributed run of the compiled network outputs it.
 
    The compiler assigns relation ids in first-seen order over [concl_rels ++ hyp_rels]: J = 0,
    A = 1, B = 2.  It orders the
@@ -19,7 +19,6 @@
 From Stdlib Require Import List String.
 From Datalog Require Import Datalog.
 From coqutil Require Import Result.
-From Datalog.Util Require Import Pftree.
 From coqutil Require Import Map.Interface.
 From DatalogRocq Require Import HardwareProgram NodeHardwareSemantics DistributedHardwareProgram
   DistributedHardwareSemantics StringDatalogParams StringGridCompiler DistributedDatalogToHardwareCompiler
@@ -146,35 +145,7 @@ Proof.
 Qed.
 
 (*==========================================================================*)
-(*  Layer 4: the node derives J(7,8) ([node_run] = proof-tree closure).        *)
-(*==========================================================================*)
-
-(* The single rule fires from any fact set that holds A(7,8) and B(8,7) as leaves. *)
-Lemma node_run_from (Q : nat_fact -> Prop) :
-  Q factA -> Q factB -> node_run tries hp Q factJ.
-Proof.
-  intros HA HB. eapply pftree.step.
-  - (* the single rule [hrJ] fires, producing J(7,8) ... *)
-    constructor. apply Exists_cons_hd. exact J_fires.
-  - (* ... and its two hypotheses are leaves of [Q]. *)
-    apply Forall_cons; [| apply Forall_cons; [| apply Forall_nil]].
-    + apply pftree.leaf. exact HA.
-    + apply pftree.leaf. exact HB.
-Qed.
-
-(* The base facts delivered to this node. *)
-Definition inputs : nat_fact -> Prop := fun f => f = factA \/ f = factB.
-
-Example J_in_node_run : node_run tries hp inputs factJ.
-Proof. apply node_run_from; [left | right]; reflexivity. Qed.
-
-(* The capstone of the node story: the program the COMPILER GENERATED, run on the node,
-   derives J(7,8). *)
-Example J_derived_by_compiled : node_run gen_tries gen_prog inputs factJ.
-Proof. rewrite tries_generated, rule_generated. exact J_in_node_run. Qed.
-
-(*==========================================================================*)
-(*  Layer 5: a DISTRIBUTED run of the compiled network                        *)
+(*  Layer 4: a DISTRIBUTED run of the compiled network                        *)
 (*  ([DistributedHardwareSemantics.run_ninfos]).                              *)
 (*==========================================================================*)
 

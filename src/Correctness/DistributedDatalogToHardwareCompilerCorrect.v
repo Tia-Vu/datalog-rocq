@@ -4,15 +4,7 @@
    handled by the compiler -- see DistributedDatalogToHardwareCompiler.generate_join / compile_concl -- and are out of
    scope here.)
 
-   The chain is:
-
-     source datalog  --(rename, DistributedDatalogToHardwareCompiler)-->  lowered_program
-        |  program.interp                             |  NodeHardwareSemantics.lprog_impl_fact (= Datalog on ids)
-        |                                             |  ===  NodeHardwareSemantics.hw_prog_impl_fact
-        +---------------------------------------------+      (this file: per-rule bridge)
-
-   [NodeHardwareSemantics.hw_prog_correct] already reduces whole-node correctness to the per-rule predicate
-   [hw_rule_matches].  This file works toward [hw_rule_matches] for rules the (now fixed)
+   This file works toward [NodeHardwareSemantics.hw_rule_matches] for rules the (now fixed)
    [compile_rule] produces, i.e. the *generic-join correctness*: the trie-join query
    [generate_query] admits exactly the variable bindings under which the lowered rule fires. *)
 
