@@ -31,6 +31,10 @@ Module trie.
   #[export] Instance eqb : Eqb trie := trie_beq.
   #[export] Instance eqb_ok : Eqb_ok eqb. Proof. eqb_ok. Qed.
 
+  Definition interp (t : trie) (vars : list var_idx) (c : clause) :=
+    c = {| clause.rel := t.(rel);
+          clause.args := map expr.var (apply_permutation (invert_permutation t.(column_order)) vars) |}.
+
   Definition of_clause (c : clause) :=
     {| rel := c.(clause.rel);
       column_order := order_to_permutation (map var_of_expr c.(clause.args)) |}.
@@ -57,13 +61,7 @@ Module trie_hyp.
     }.
 
   Definition interp (tries : trie_id -> option trie.trie) (th : trie_hyp) (c : clause) :=
-    exists t,
-      tries th.(trie) = Some t /\
-        c = {| clause.rel := t.(trie.rel);
-              clause.args := map expr.var
-                               (apply_permutation
-                                  (invert_permutation t.(trie.column_order))
-                                  (nats_in_list th.(var_set))); |}.
+    exists t, tries th.(trie) = Some t /\ trie.interp t (nats_in_list th.(var_set)) c.
 
   Definition of_clause {mp : map.map trie.trie trie_id}
     (tries_inv : partial_map trie.trie trie_id) (hyp : clause) : trie_hyp :=
