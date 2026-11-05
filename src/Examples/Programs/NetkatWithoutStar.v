@@ -5,6 +5,7 @@ Import ListNotations.
 Open Scope string_scope.
 
 Import StringDatalogParams.
+#[local] Instance string_fn : fnT := string.
 
 (* Operator meanings *)
 (* ================================================================= *)

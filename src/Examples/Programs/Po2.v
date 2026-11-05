@@ -6,6 +6,7 @@ From DatalogRocq Require Import StringDatalogParams DependencyGenerator.
 Import ListNotations.
 Open Scope bool_scope.
 Open Scope string_scope.
+#[local] Instance string_fn : fnT := string.
 
 (* {0: (2, 2), 1: (2, 2), 2: (2, 1), 3: (2, 0), 4: (2, 0), 5: (0, 0), 6: (1, 0), 7: (1, 1), 8: (1, 0), 9: (0, 2), 10: (1, 2), 11: (0, 0), 12: (0, 1), 13: (1, 1), 14: (1, 2), 15: (2, 1), 16: (0, 2), 17: (0, 1)} *)
 (* ------------------------------------------------------------------ *)

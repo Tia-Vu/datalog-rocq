@@ -6,6 +6,7 @@ Import ListNotations.
 Open Scope string_scope.
 
 Import StringDatalogParams.
+#[local] Instance string_fn : fnT := string.
 
 Definition empty_rule : rule := rule.impl [] [].
 
@@ -19,7 +20,7 @@ Definition edge_path_rule : rule :=
 (* Helper to create a constant (as a nullary function) *)
 Definition const (c : string) : expr := expr.app c [].
 
-(* Example: edge(x, 42) :- node(x) 
+(* Example: edge(x, 42) :- node(x)
    This represents "for all x, if x is a node, then there's an edge from x to node 42" *)
 Definition everything_connects_to_42_rule : rule :=
   rule.impl

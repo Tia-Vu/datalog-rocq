@@ -16,10 +16,14 @@ Open Scope bool_scope.
 
 (* Structural compatibility of two expressions for unification (NOT decidable equality):
    a variable matches anything; two applications match iff same head and compatible args. *)
-Fixpoint expr_compatible (e1 e2 : expr) : bool :=
-  match e1, e2 with
-  | expr.var _, _ => true
-  | _, expr.var _ => true
-  | expr.app f1 args1, expr.app f2 args2 =>
-      eqb f1 f2 && forallb2 expr_compatible args1 args2
-  end.
+Section expr_compatible.
+  Context {fn : fnT} {fn_eqb : Eqb fn}.
+
+  Fixpoint expr_compatible (e1 e2 : @expr string_var fn) : bool :=
+    match e1, e2 with
+    | expr.var _, _ => true
+    | _, expr.var _ => true
+    | expr.app f1 args1, expr.app f2 args2 =>
+        eqb f1 f2 && forallb2 expr_compatible args1 args2
+    end.
+End expr_compatible.
