@@ -116,6 +116,10 @@ Module trie_hyp.
     rewrite nats_in_list_order by assumption. apply trie.interp_of_clause.
   Qed.
 
+  Lemma interp_functional tries th c1 c2 :
+    interp tries th c1 -> interp tries th c2 -> c1 = c2.
+  Proof. intros (t1 & H1 & ->) (t2 & H2 & ->). congruence. Qed.
+
 End trie_hyp. Abbreviation trie_hyp := trie_hyp.trie_hyp.
 
 Module trie_rule.
@@ -156,6 +160,25 @@ Module trie_rule.
     apply interp_of_rule. rewrite Forall_forall in *. intros c Hc. split; [|auto].
     apply dedup_In, in_flat_map. exists (rule.impl cs hs). split; [assumption|].
     apply in_map, Hc.
+  Qed.
+
+  Lemma interp_of_rule_in rs r :
+    Forall good_rule rs -> In r rs ->
+    interp (nth_error (trie.of_rules rs)) (of_rule (trie.of_rules rs) r) r.
+  Proof.
+    intros H Hr. rewrite Forall_forall in H. pose proof (H r Hr) as Hg.
+    destruct r as [cs hs|]; cbn in Hg; [|contradiction].
+    apply interp_of_rule. rewrite Forall_forall in *. intros c Hc. split; [|auto].
+    apply dedup_In, in_flat_map. exists (rule.impl cs hs). split; [assumption|].
+    apply in_map, Hc.
+  Qed.
+
+  Lemma interp_functional tries t r1 r2 :
+    interp tries t r1 -> interp tries t r2 -> r1 = r2.
+  Proof.
+    intros (hs1 & -> & H1) (hs2 & -> & H2). f_equal.
+    revert hs2 H2. induction H1 as [|th c1 ths cs1 Hc1 _ IH]; intros hs2 H2; inversion H2; subst; [reflexivity|].
+    f_equal; eauto using trie_hyp.interp_functional.
   Qed.
 
 End trie_rule. Abbreviation trie_rule := trie_rule.trie_rule.

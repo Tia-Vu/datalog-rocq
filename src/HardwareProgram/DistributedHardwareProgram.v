@@ -1,7 +1,7 @@
 From Stdlib Require Import List String Bool ZArith.
 From DatalogRocq Require Import HardwareProgram Topologies.Graph.
 From coqutil Require Import Datatypes.List Map.Interface Map.Properties Eqb.
-From Datalog.Util Require Import Map Eqb.
+From Datalog.Util Require Import Map Eqb Default.
 
 #[export] Abbreviation channel_id := nat (only parsing).
 
@@ -49,3 +49,7 @@ Module node_info.
     }.
   End __.
 End node_info. Abbreviation node_info := node_info.node_info.
+
+#[export] Instance node_info_default {node_id : node_idT} {_fwd_tbl : map.map (rel_id * fwd_from) (list fwd_to)} :
+  WithDefault node_info :=
+  {| node_info.program := nil; node_info.forwarding := map.empty; node_info.tries := nil |}.
