@@ -43,7 +43,6 @@ Module node_info.
   Context {map_trie_id_trie : map.map trie_id trie}.
 
   Record node_info := {
-      id : node_id;
       program : list trie_rule;
       forwarding : forwarding_table;
       tries : partial_map trie_id trie;
