@@ -40,6 +40,7 @@ Module trie.
     | rule.impl _ hyps => map of_clause hyps
     | rule.agg _ _ _ => [] (*garbage*)
     end.
+
 End trie. Export (hints) trie. Abbreviation trie := trie.trie.
 #[export] Register Scheme trie.eqb as beq for trie.trie.
 
@@ -68,6 +69,7 @@ Module trie_hyp.
     (tries_inv : partial_map trie.trie trie_id) (hyp : clause) : trie_hyp :=
     {| trie_hyp.trie := get_or O tries_inv (trie.of_clause hyp) ;
       trie_hyp.var_set := map var_of_expr hyp.(clause.args) |}.
+
 End trie_hyp. Abbreviation trie_hyp := trie_hyp.trie_hyp.
 
 Module trie_rule.
@@ -87,7 +89,9 @@ Module trie_rule.
     | rule.impl concls hyps => trie_rule.mk concls (map (trie_hyp.of_clause tries_inv) hyps)
     | rule.agg _ _ _ => trie_rule.mk [] [] (*garbage*)
     end.
+
   Definition of_rules {mp : map.map trie.trie trie_id} (rs : list rule) :=
     let tries := map.of_list (map swap (enumerate O (dedup eqb (flat_map trie.of_rule rs)))) in
     map (of_rule tries) rs.
+
 End trie_rule. Abbreviation trie_rule := trie_rule.trie_rule.
