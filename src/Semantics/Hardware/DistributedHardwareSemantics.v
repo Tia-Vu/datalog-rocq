@@ -33,7 +33,7 @@ Inductive dstep (c : config) : config -> Prop :=
     input n f -> dstep c (cadd c n fwd_from.input f)
 | dstep_run n tr r nf hyps :
     In tr (ninfos n).(node_info.program) ->
-    trie_rule.interp (map.get (ninfos n).(node_info.tries)) tr r ->
+    trie_rule.interp (nth_error (ninfos n).(node_info.tries)) tr r ->
     rule.interp r nf hyps ->
     Forall (fun hyp => exists src, c n src hyp /\ In fwd_to.self (forward (ninfos n) (fact.rel hyp) src)) hyps ->
     dstep c (cadd c n fwd_from.self (fact.normal nf))

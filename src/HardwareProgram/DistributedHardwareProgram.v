@@ -45,7 +45,7 @@ Module node_info.
   Record node_info := {
       program : list trie_rule;
       forwarding : forwarding_table;
-      tries : partial_map trie_id trie;
+      tries : list trie;
     }.
   End __.
 End node_info. Abbreviation node_info := node_info.node_info.

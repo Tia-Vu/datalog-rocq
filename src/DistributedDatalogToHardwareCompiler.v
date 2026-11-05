@@ -48,6 +48,7 @@ Context {map_rel_id_list_node_id : map.map rel_id (list node_id)}.
 Context {map_rel_id_fwd_from_list_fwd_to : map.map (rel_id * fwd_from) (list fwd_to)}.
 Context {graph_vnode : graph.graph vnode}.
 Context {graph_node_id : graph.graph node_id}.
+Context {map_node_id_node_info : map.map node_id node_info}.
 
 (* the reference program a layout induces: every rule placed on any node, unioned. *)
 Definition source_program (layout : partial_map node_id (list rule)) : list rule :=
@@ -62,16 +63,13 @@ Lemma layout_distributes_programb_spec p layout :
   layout_distributes_programb p layout = true -> layout_distributes_program p layout.
 Proof. intros. fwd. cbv [layout_distributes_program]. auto. Qed.
 
-Definition compile_rules (rules : list rule) : list trie_rule :=
-  trie_rule.of_rules (map order_variables rules).
-
 (*----Forwarding Tables----*)
 
 Context {node_ftable_map : map.map node_id forwarding_table}.
 
 Context {rels_at_node : map.map node_id (list rel_id)}.
 
-Definition get_internal_producers_of (layout : partial_map node_id (list lowered_rule)) :=
+Definition get_internal_producers_of (layout : partial_map node_id (list rule)) :=
   let internally_produced_at_node :=
     (*maps node n to set of rels which may be (internally) produced at n*)
     map.map_values (fun p => dedup (flat_map rule.concl_rels p)) layout in
@@ -85,7 +83,7 @@ Definition get_all_producers_of layout (input_relations : list rel_id) : partial
     (map.map_values (fun nodes => List.map (fun n => vnode.at_port n fwd_from.self) nodes) internal_producers)
     (map.of_list (List.map (fun R => (R, [vnode.ext_input])) input_relations)).
 
-Definition get_internal_consumers_of (layout : partial_map node_id (list lowered_rule)) :=
+Definition get_internal_consumers_of (layout : partial_map node_id (list rule)) :=
   let internally_consumed_at_node :=
     (*maps node n to set of rels which may be (internally) consumed at n*)
     map.map_values (fun p => dedup (flat_map rule.hyp_rels p)) layout in
@@ -164,21 +162,17 @@ Definition check_ftables_acyclic (ftables : partial_map node_id forwarding_table
   else error:("compile: the channel dependency graph has a cycle---these forwarding tables can deadlock").
 
 (*----Final Compilation----*)
+Definition compile_rules (rules : list rule) : list trie_rule :=
+  trie_rule.of_rules (map order_variables rules).
+Print node_info. Print trie_rule.of_rules.
+Definition compile_node (program : list rule) : node_info :=
+  let ordered_rules := map order_variables program in
+  {| node_info.program := trie_rule.of_rules ordered_rules;
+    node_info.forwarding := map.empty;
+    node_info.tries := trie.of_rules ordered_rules; |}.
 
-Definition compile_node (node : node_id) (program : lowered_program) : Result.result node_info :=
-  '(compiled_rules, ncontext) <-
-    fold_left (fun acc rule =>
-      '(rules, ncontext) <- acc ;;
-      '(hr, ncontext) <- compile_rule rule ncontext ;;
-      Success (hr :: rules, ncontext)%list
-    ) program (Success ([], initial_node_context)) ;;
-  Success {| nid := node;
-             nprogram := rev compiled_rules;
-             nforwarding := map.empty;
-             ntries := rev ncontext.(nctries) |}.
-
-Definition compile_all_nodes (llayout : partial_map node_id (list lowered_rule)) : Result.result (list node_info) :=
-  List.all_success (List.map (fun '(node, program) => compile_node node program) (map.tuples llayout)).
+Definition compile_all_nodes (llayout : partial_map node_id (list rule)) : partial_map node_id node_info :=
+  map.map_values compile_node llayout.
 
 (* Attach the compiled forwarding tables to node_infos -- now for EVERY node that forwards, not
    just the layout nodes: layout nodes keep their compiled program/tries, and any extra node that
