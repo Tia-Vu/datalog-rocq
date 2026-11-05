@@ -63,7 +63,7 @@ Module trie.
   Definition of_rule (r : rule) :=
     match r with
     | rule.impl _ hyps => map of_clause hyps
-    | rule.agg _ _ _ => [] (*garbage*)
+    | rule.agg _ a _ => match a with end
     end.
 
   Definition of_rules (rs : list rule) :=
@@ -132,7 +132,7 @@ Module trie_rule.
   Definition of_rule (tries : list trie) (r : rule) :=
     match r with
     | rule.impl concls hyps => trie_rule.mk concls (map (trie_hyp.of_clause tries) hyps)
-    | rule.agg _ _ _ => trie_rule.mk [] [] (*garbage*)
+    | rule.agg _ a _ => match a with end
     end.
 
   Definition of_rules (rs : list rule) :=
