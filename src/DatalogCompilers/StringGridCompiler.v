@@ -36,7 +36,7 @@ Definition rel_ids (program : list rule) : string -> rel_id :=
     {| program.rules := program; program.meta_rules := [] |}).
 
 Definition nattify_layout (enc : string -> rel_id)
-    (slayout : partial_map node_id (list rule)) : partial_map node_id (list HardwareProgram.lowered_rule) :=
+    (slayout : partial_map node_id (list rule)) : partial_map node_id (list (rule (_rel := nat))) :=
   map.fold (fun acc nid rules => map.put acc nid (List.map (rule.map_rel enc) rules)) map.empty slayout.
 
 Definition nattify_fact_locs (enc : string -> rel_id) (fl : partial_map string (list node_id)) : partial_map rel_id (list node_id) :=
