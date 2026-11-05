@@ -7,6 +7,7 @@ Import ListNotations.
 Section VariableOrdering.
 Context `{params : datalog_params}.
 
+(*TODO do something cleverer here*)
 Definition variable_order (hyps : list clause) : list exprvar :=
   dedup (flat_map clause.vars hyps).
 
