@@ -1,4 +1,4 @@
-From Datalog Require Import Datalog Util.Permutation List Eqb Map.
+From Datalog Require Import Datalog Util.Permutation List Eqb Map Default.
 From Stdlib Require Import List String Bool ZArith.
 From coqutil Require Import Datatypes.List Map.Interface OrderToPermutation Eqb.
 From DatalogRocq Require Import DependencyGenerator MapInstances Topologies.Graph ComputableGraph.
@@ -45,6 +45,9 @@ Module trie.
     | rule.agg _ _ _ => [] (*garbage*)
     end.
 
+  Definition of_rules (rs : list rule) :=
+    dedup eqb (flat_map of_rule rs).
+
 End trie. Export (hints) trie. Abbreviation trie := trie.trie.
 #[export] Register Scheme trie.eqb as beq for trie.trie.
 
@@ -63,9 +66,8 @@ Module trie_hyp.
   Definition interp (tries : trie_id -> option trie.trie) (th : trie_hyp) (c : clause) :=
     exists t, tries th.(trie) = Some t /\ trie.interp t (nats_in_list th.(var_set)) c.
 
-  Definition of_clause {mp : map.map trie.trie trie_id}
-    (tries_inv : partial_map trie.trie trie_id) (hyp : clause) : trie_hyp :=
-    {| trie_hyp.trie := get_or O tries_inv (trie.of_clause hyp) ;
+  Definition of_clause (tries : list trie.trie) (hyp : clause) : trie_hyp :=
+    {| trie_hyp.trie := unwrap_or O (index_of (trie.of_clause hyp) tries) ;
       trie_hyp.var_set := map var_of_expr hyp.(clause.args) |}.
 
 End trie_hyp. Abbreviation trie_hyp := trie_hyp.trie_hyp.
@@ -81,15 +83,13 @@ Module trie_rule.
       r = rule.impl t.(concls) hyps' /\
         Forall2 (trie_hyp.interp tries) t.(hyps) hyps'.
 
-  Definition of_rule {mp : map.map trie.trie trie_id}
-    (tries_inv : partial_map trie trie_id) (r : rule) :=
+  Definition of_rule (tries : list trie) (r : rule) :=
     match r with
-    | rule.impl concls hyps => trie_rule.mk concls (map (trie_hyp.of_clause tries_inv) hyps)
+    | rule.impl concls hyps => trie_rule.mk concls (map (trie_hyp.of_clause tries) hyps)
     | rule.agg _ _ _ => trie_rule.mk [] [] (*garbage*)
     end.
 
-  Definition of_rules {mp : map.map trie.trie trie_id} (rs : list rule) :=
-    let tries := map.of_list (map swap (enumerate O (dedup eqb (flat_map trie.of_rule rs)))) in
-    map (of_rule tries) rs.
+  Definition of_rules (rs : list rule) :=
+    map (of_rule (trie.of_rules rs)) rs.
 
 End trie_rule. Abbreviation trie_rule := trie_rule.trie_rule.
