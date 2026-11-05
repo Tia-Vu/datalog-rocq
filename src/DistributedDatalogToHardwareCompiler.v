@@ -164,40 +164,20 @@ Definition check_ftables_acyclic (ftables : partial_map node_id forwarding_table
 (*----Final Compilation----*)
 Definition compile_rules (rules : list rule) : list trie_rule :=
   trie_rule.of_rules (map order_variables rules).
-Print node_info. Print trie_rule.of_rules.
-Definition compile_node (program : list rule) : node_info :=
+
+Definition compile_node (program : list rule) (ft : forwarding_table) : node_info :=
   let ordered_rules := map order_variables program in
   {| node_info.program := trie_rule.of_rules ordered_rules;
-    node_info.forwarding := map.empty;
+    node_info.forwarding := ft;
     node_info.tries := trie.of_rules ordered_rules; |}.
 
-Definition compile_all_nodes (llayout : partial_map node_id (list rule)) : partial_map node_id node_info :=
-  map.map_values compile_node llayout.
-
-(* Attach the compiled forwarding tables to node_infos -- now for EVERY node that forwards, not
-   just the layout nodes: layout nodes keep their compiled program/tries, and any extra node that
-   appears as a forwarding source (a key of [ftables], e.g. a fact-only input node) gets an empty
-   program/tries with its forwarding table.  This makes the returned [ninfos] self-contained: the
-   whole distributed network (programs, tries AND forwarding) can be read back off it. *)
-Definition attach_forwarding_tables (ninfos : list node_info)
-    (ftables : node_ftable_map) : list node_info :=
-  List.map (fun ninfo =>
-    {| nid := ninfo.(nid);
-       nprogram := ninfo.(nprogram);
-       nforwarding := get_or_default ftables ninfo.(nid);
-       ntries := ninfo.(ntries) |}
-  ) ninfos
-  ++ List.map (fun n =>
-       {| nid := n;
-          nprogram := [];
-          nforwarding := get_or_default ftables n ;
-          ntries := [] |})
-     (filter
-        (fun n => negb (existsb (fun ninfo => eqb ninfo.(nid) n) ninfos))
-        (map.keys ftables)).
+Definition compile_all_nodes (layout : partial_map node_id (list rule)) (ftables : partial_map node_id forwarding_table) : partial_map node_id node_info :=
+  map.of_list
+    (map (fun n => (n, compile_node (get_or_default layout n) (get_or_default ftables n)))
+       (list_union eqb (map.keys layout) (map.keys ftables))).
 
 (* every node the layout assigns to is a real graph node. *)
-Definition layout_in_graphb (g : ComputableGraph node_id) (llayout : partial_map node_id (list lowered_rule)) :=
+Definition layout_in_graphb (g : ComputableGraph node_id) (llayout : partial_map node_id (list rule)) :=
   map.forallb (fun n _ => check_node_valid n (ComputableGraph.nodes g)) llayout.
 
 Definition hops_in_graphb R
@@ -218,10 +198,10 @@ Definition ftables_in_graphb output_locations (g : ComputableGraph node_id) (fta
   map.forallb (ftable_in_graphb output_locations g) ftables.
 
 Definition compile
-  (layout : partial_map node_id (list lowered_rule))
+  (layout : partial_map node_id (list rule))
   (output_locations input_locations : partial_map rel_id (list node_id))
   (ftables : node_ftable_map)
-  (g : ComputableGraph node_id) : Result.result (list node_info) :=
+  (g : ComputableGraph node_id) : Result.result (partial_map node_id node_info) :=
   (if check_graph_valid g
    then Success tt
    else error:("compile: the topology graph is not valid (edges reference missing nodes)")) ;;
@@ -239,8 +219,7 @@ Definition compile
   let all_consumers_of := get_all_consumers_of layout output_relations in
   check_ftables_routable ftables input_locations all_producers_of all_consumers_of ;;
   check_ftables_acyclic ftables ;;
-  ninfos <- compile_all_nodes layout ;;
-  Success (attach_forwarding_tables ninfos ftables).
+  Success (compile_all_nodes layout ftables).
 
 Definition dumb_ftable_at_node' (output_locations : partial_map rel_id (list node_id)) R node neighbors :
   list (fwd_from * (list fwd_to)) :=
@@ -264,17 +243,9 @@ Definition dumb_ftables (g : ComputableGraph node_id) output_locations (all_rels
   end.
 
 Definition compile_with_dumb_ftables
-  (layout : partial_map node_id (list lowered_rule))
+  (layout : partial_map node_id (list rule))
   (output_locations input_locations : partial_map rel_id (list node_id))
-  (g : ComputableGraph node_id) : Result.result (list node_info) :=
+  (g : ComputableGraph node_id) : Result.result (partial_map node_id node_info) :=
   let ftables := dumb_ftables g output_locations (map.keys (get_all_producers_of layout (map.keys input_locations))) in
   compile layout output_locations input_locations ftables g.
 End DistributedDatalogToHardwareCompiler.
-
-Compute compute_permutation [2;3;1;1] [1;2;3].
-Compute generate_join
-  [ {| tid := 0; trel := 0; tperm := [0; 1] |} ;
-    {| tid := 1; trel := 0; tperm := [1; 0] |} ]
-  1
-  [ {| clause.rel := 0; clause.args := [expr.var 0; expr.var 1] |} ;
-    {| clause.rel := 0; clause.args := [expr.var 1; expr.var 2] |} ].
