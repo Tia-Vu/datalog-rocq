@@ -1,6 +1,6 @@
-From Datalog Require Import Datalog Util.Permutation.
+From Datalog Require Import Datalog Util.Permutation List Eqb.
 From Stdlib Require Import List String Bool ZArith.
-From coqutil Require Import Datatypes.List Map.Interface OrderToPermutation.
+From coqutil Require Import Datatypes.List Map.Interface OrderToPermutation Eqb.
 From DatalogRocq Require Import DependencyGenerator MapInstances Topologies.Graph ComputableGraph.
 
 Open Scope bool_scope.
@@ -17,12 +17,16 @@ Module trie.
   Record trie := mk {
       rel : rel_id;
       (*column_order[i] is the column of the relation represented by level i of the trie,
-        so [apply_permutation column_order things_in_trie_order] yields [things_in_relation_order] *)
+        so [apply_permutation column_order things_in_relation_order] yields [things_in_trie_order] *)
       column_order : permutation;
     }.
 End trie. Abbreviation trie := trie.trie.
 
 Definition trie_id := nat.
+
+(*TODO use sort (dedup l) instead?*)
+Definition nats_in_list (l : list nat) :=
+  filter (fun v => inb v l) (seq O (S (list_max l))).
 
 Module trie_hyp.
   Record trie_hyp := mk {
@@ -34,7 +38,10 @@ Module trie_hyp.
     exists t,
       tries th.(trie) = Some t /\
         c = {| clause.rel := t.(trie.rel);
-              clause.args := map expr.var (invert_permutation t.(trie.column_order)); |}.
+              clause.args := map expr.var
+                               (apply_permutation
+                                  (invert_permutation t.(trie.column_order))
+                                  (nats_in_list th.(var_set))); |}.
 
 End trie_hyp. Abbreviation trie_hyp := trie_hyp.trie_hyp.
 
