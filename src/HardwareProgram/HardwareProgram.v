@@ -27,6 +27,10 @@ Module trie.
       column_order : permutation;
     }.
 
+  Scheme Boolean Equality for trie.
+  #[export] Instance eqb : Eqb trie := trie_beq.
+  #[export] Instance eqb_ok : Eqb_ok eqb. Proof. eqb_ok. Qed.
+
   Definition of_clause (c : clause) :=
     {| rel := c.(clause.rel);
       column_order := order_to_permutation (map var_of_expr c.(clause.args)) |}.
@@ -36,7 +40,8 @@ Module trie.
     | rule.impl _ hyps => map of_clause hyps
     | rule.agg _ _ _ => [] (*garbage*)
     end.
-End trie. Abbreviation trie := trie.trie.
+End trie. Export (hints) trie. Abbreviation trie := trie.trie.
+#[export] Register Scheme trie.eqb as beq for trie.trie.
 
 Definition trie_id := nat.
 
