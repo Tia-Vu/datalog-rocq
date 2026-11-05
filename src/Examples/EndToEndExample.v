@@ -7,11 +7,11 @@
      1. instantiate it at the string-datalog / grid-topology backend (its maps are inferred);
      2. give a concrete program  J(x,y) :- A(x,y), B(y,x)  and a one-node indexed layout;
      3. run the compiler ([compiled_J]) and show it SUCCEEDS;
-     4. discharge the boolean side checks [bare_layoutb] / [layout_distributes_programb] by [vm_compute];
-     5. conclude [end_to_end_equiv]: for the compiler's output [ninfos], the distributed run derives
+     4. discharge the boolean side checks [good_source_ruleb] / [layout_distributes_programb] by [vm_compute];
+     5. conclude [end_to_end_equiv]: for the compiler's output [network], the distributed run derives
         the nattified [fsrc] iff the source program derives [fsrc].
 
-   Note on performance: proving  compile ... = Success ninfos  as a full Leibniz equality is slow,
+   Note on performance: proving  compile ... = Success network  as a full Leibniz equality is slow,
    because the kernel re-checks the [eq_refl] sortedness proofs inside every emitted sorted-list map
    WITHOUT the VM.  So the equivalence takes the compiler's output as a hypothesis; that the equation
    holds is witnessed cheaply by [compiled_J_ok] (a [match ... => True], which never forces the map
@@ -33,7 +33,7 @@ Import ListNotations.
 Open Scope string_scope.
 
 (* Trivial value-signature for the bare fragment (no functions / no aggregation). *)
-#[local] Instance sig_src : datalog_semantics string unit string :=
+#[local] Instance sig_src : datalog_semantics fn aggregator string :=
   {| interp_fun := fun _ _ => None;
      get_nat := fun _ => 0; agg_bop := fun _ x _ => x; agg_id := fun _ => "" |}.
 
@@ -68,7 +68,7 @@ Definition compiled_J := Eval vm_compute in compile_program P idx_layout FPS FPS
 Example compiled_J_ok : match compiled_J with Success _ => True | _ => False end := I.
 
 (* Boolean side checks (reduce to [true = true]). *)
-Example check_bare        : bare_layoutb NLAYOUT = true.
+Example check_good        : forallb good_source_ruleb (source_program NLAYOUT) = true.
 Proof. vm_compute; reflexivity. Qed.
 Example check_distributes : layout_distributes_programb (nattify_rel_prog (program_rels P) (rules_only P)).(program.rules) NLAYOUT = true.
 Proof. vm_compute; reflexivity. Qed.
@@ -81,13 +81,13 @@ Proof. vm_compute; reflexivity. Qed.
 (*==========================================================================*)
 Opaque compile.
 Theorem end_to_end_equiv
-    (ninfos : list (@DistributedHardwareProgram.node_info node_id _))
+    (network : partial_map node_id node_info)
     (Qsrc : Datalog.fact -> Prop) (fsrc : Datalog.fact) :
-  compile_program P idx_layout FPS FPS topo = Success ninfos ->
+  compile_program P idx_layout FPS FPS topo = Success network ->
   (forall f, Qsrc f -> In (fact.rel f) (program_rels P)) ->
   edb_routable NFPS (relabel_Q (encode_rel (rel_table (program_rels P) (rules_only P))) Qsrc) ->
   (exists n, In n (get_or_default NFPS (fact.rel (nattify_rel_fact (program_rels P) (rules_only P) fsrc)))) ->
-  run_ninfos ninfos
+  run_ninfos (get_or_default network)
     (fun n f0 => relabel_Q (encode_rel (rel_table (program_rels P) (rules_only P))) Qsrc f0 /\
                  In n (get_or_default NFPS (fact.rel f0)))
     (nattify_rel_fact (program_rels P) (rules_only P) fsrc)
@@ -95,7 +95,7 @@ Theorem end_to_end_equiv
 Proof.
   intros Hc Hscope Hedb Houtrel.
   eapply nattify_and_compile_correct; try eassumption.
-  - vm_compute; reflexivity.
+  - apply good_source_rulesb_spec. vm_compute; reflexivity.
   - apply layout_distributes_programb_spec. vm_compute; reflexivity.
 Qed.
 
@@ -105,9 +105,9 @@ Qed.
 (*     Path(x, z) :- Edge(x, y), Path(y, z).                                   *)
 (*  [nattify_and_compile_correct] applies to it unchanged.                    *)
 (*==========================================================================*)
-Definition Path (x y : string) : @Datalog.clause string string string :=
+Definition Path (x y : string) : clause :=
   {| Datalog.clause.rel := "Path"; Datalog.clause.args := [Datalog.expr.var x; Datalog.expr.var y] |}.
-Definition Edge (x y : string) : @Datalog.clause string string string :=
+Definition Edge (x y : string) : clause :=
   {| Datalog.clause.rel := "Edge"; Datalog.clause.args := [Datalog.expr.var x; Datalog.expr.var y] |}.
 
 Definition r0 : rule := Datalog.rule.impl [Path "x" "y"] [Edge "x" "y"].
@@ -125,19 +125,19 @@ Definition NFPS_r    := nattify_fact_locs (rel_ids Preach) FPS_r.
 Definition compiled_R := Eval vm_compute in compile_program Preach idx_layout_r FPS_r FPS_r topo_r.
 Example compiled_R_ok : match compiled_R with Success _ => True | _ => False end := I.
 
-Example check_bare_r        : bare_layoutb NLAYOUT_r = true.
+Example check_good_r        : forallb good_source_ruleb (source_program NLAYOUT_r) = true.
 Proof. vm_compute; reflexivity. Qed.
 Example check_distributes_r : layout_distributes_programb (nattify_rel_prog (program_rels Preach) (rules_only Preach)).(program.rules) NLAYOUT_r = true.
 Proof. vm_compute; reflexivity. Qed.
 
 Theorem end_to_end_equiv_reach
-    (ninfos : list (@DistributedHardwareProgram.node_info node_id _))
+    (network : partial_map node_id node_info)
     (Qsrc : Datalog.fact -> Prop) (fsrc : Datalog.fact) :
-  compile_program Preach idx_layout_r FPS_r FPS_r topo_r = Success ninfos ->
+  compile_program Preach idx_layout_r FPS_r FPS_r topo_r = Success network ->
   (forall f, Qsrc f -> In (fact.rel f) (program_rels Preach)) ->
   edb_routable NFPS_r (relabel_Q (encode_rel (rel_table (program_rels Preach) (rules_only Preach))) Qsrc) ->
   (exists n, In n (get_or_default NFPS_r (fact.rel (nattify_rel_fact (program_rels Preach) (rules_only Preach) fsrc)))) ->
-  run_ninfos ninfos
+  run_ninfos (get_or_default network)
     (fun n f0 => relabel_Q (encode_rel (rel_table (program_rels Preach) (rules_only Preach))) Qsrc f0 /\
                  In n (get_or_default NFPS_r (fact.rel f0)))
     (nattify_rel_fact (program_rels Preach) (rules_only Preach) fsrc)
@@ -145,6 +145,6 @@ Theorem end_to_end_equiv_reach
 Proof.
   intros Hc Hscope Hedb Houtrel.
   eapply nattify_and_compile_correct; try eassumption.
-  - vm_compute; reflexivity.
+  - apply good_source_rulesb_spec. vm_compute; reflexivity.
   - apply layout_distributes_programb_spec. vm_compute; reflexivity.
 Qed.

@@ -39,6 +39,25 @@ Definition good_source_rule (r : rule) :=
   | rule.agg _ a _ => match a with end
   end.
 
+Definition good_source_ruleb (r : rule) :=
+  match r with
+  | rule.impl concls hyps =>
+      andb (forallb (fun c => nodupb (clause.vars c)) hyps)
+        (inclb (flat_map clause.vars concls) (flat_map clause.vars hyps))
+  | rule.agg _ a _ => match a with end
+  end.
+
+Lemma good_source_ruleb_spec r : good_source_ruleb r = true -> good_source_rule r.
+Proof.
+  destruct r as [concls hyps|]; [|contradiction]. cbn. intros H.
+  apply andb_prop in H as [H1 H2]. rewrite forallb_forall in H1. split.
+  - apply Forall_forall. intros c Hc. apply nodupb_sound, H1, Hc.
+  - apply inclb_incl, H2.
+Qed.
+
+Lemma good_source_rulesb_spec rs : forallb good_source_ruleb rs = true -> Forall good_source_rule rs.
+Proof. rewrite forallb_forall. intros H. apply Forall_forall. intros r Hr. apply good_source_ruleb_spec, H, Hr. Qed.
+
 Lemma map_var_of_expr_varmap (f : exprvar -> var_idx) (args : list expr) :
   map var_of_expr (map (expr_varmap f) args) = map f (flat_map expr.vars args).
 Proof. induction args as [|[|[]] args IH]; [reflexivity|]. cbn. f_equal. exact IH. Qed.
