@@ -2,7 +2,7 @@ From JSON Require Import Encode Printer.
 From Stdlib Require Import String List ZArith.
 From coqutil Require Import Map.Interface Result.
 From Datalog.Util Require Export JSON.
-From DatalogRocq Require Import Topologies.Graph HardwareProgram DistributedHardwareProgram.
+From DatalogRocq Require Import Topologies.Graph HardwareProgram DistributedHardwareProgram EncodeProgram.
 
 (* Generic JSON encoders for the compiled hardware-program AST.
 
@@ -16,21 +16,18 @@ Context {node_id : node_idT}.
 Context `{JEncode node_id}.
 Context {map_rel_id_fwd_from_list_fwd_to : map.map (rel_id * fwd_from) (list fwd_to)}.
 
-#[global] Instance JEncode__join : JEncode join :=
-  fun j =>
-    JSON__Object [("tries", encode j.(tries));
-                ("trie_levels", encode j.(trie_levels));
-                ("clauses", encode j.(clauses))].
+#[global] Instance JEncode__Empty_set : JEncode Empty_set :=
+  fun x => match x with end.
 
-#[global] Instance JEncode__join_output : JEncode join_output :=
-  fun jo =>
-    JSON__Object [("output_rel", encode jo.(output_rel));
-                ("output_var_indices", encode jo.(output_var_indices))].
+#[global] Instance JEncode__trie_hyp : JEncode trie_hyp :=
+  fun th =>
+    JSON__Object [("trie", encode th.(trie_hyp.trie));
+                ("var_set", encode th.(trie_hyp.var_set))].
 
-#[global] Instance JEncode_hardware_rule : JEncode hardware_rule :=
+#[global] Instance JEncode__trie_rule : JEncode trie_rule :=
   fun hr =>
-    JSON__Object [("hhyps", encode hr.(hhyps));
-                ("hconcls", encode hr.(hconcls))].
+    JSON__Object [("hyps", encode hr.(trie_rule.hyps));
+                ("concls", encode hr.(trie_rule.concls))].
 
 #[global] Instance JEncode__fwd_from : JEncode fwd_from := fun src =>
   match src with
@@ -48,16 +45,14 @@ Context {map_rel_id_fwd_from_list_fwd_to : map.map (rel_id * fwd_from) (list fwd
 
 #[global] Instance JEncode__trie : JEncode trie :=
   fun t =>
-    JSON__Object [("tid", encode t.(tid));
-                ("trel", encode t.(trel));
-                ("tperm", encode t.(tperm))].
+    JSON__Object [("rel", encode t.(trie.rel));
+                ("perm", encode t.(trie.column_order))].
 
 #[global] Instance JEncode__node_info : JEncode node_info :=
   fun ni =>
-    JSON__Object [("nid", encode ni.(nid));
-                ("nprogram", encode ni.(nprogram));
-                ("nforwarding", encode ni.(nforwarding));
-                ("ntries", encode ni.(ntries))].
+    JSON__Object [("program", encode ni.(node_info.program));
+                ("forwarding", encode ni.(node_info.forwarding));
+                ("tries", encode ni.(node_info.tries))].
 
 #[global] Instance JEncode__Result {A} `{JEncode A} : JEncode (result A) :=
   fun r =>

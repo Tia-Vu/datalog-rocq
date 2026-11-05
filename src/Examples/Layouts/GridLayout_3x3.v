@@ -78,7 +78,7 @@ Section FamilyExample.
   (* The semantics (interpretation) parameters are kept abstract; only
      semantics/context/value_set are needed (the layout/forwarding facts are structural). *)
   Context {context : map.map string string} {context_ok : map.ok context}.
-  Context {semantics : datalog_semantics string unit string}.
+  Context {semantics : datalog_semantics fn aggregator string}.
   Context {value_set : map.map (list string) unit} {value_set_ok : map.ok value_set}.
 
   Definition dims : list nat := [3; 3].

@@ -1,7 +1,7 @@
 From Stdlib Require Import List String Bool ZArith.
 From DatalogRocq Require Import HardwareProgram Topologies.Graph.
 From coqutil Require Import Datatypes.List Map.Interface Map.Properties Eqb.
-From Datalog.Util Require Import Map Eqb.
+From Datalog.Util Require Import Map Eqb Default.
 
 #[export] Abbreviation channel_id := nat (only parsing).
 
@@ -33,20 +33,23 @@ Module fwd_to.
 End fwd_to. Export (hints) fwd_to. Abbreviation fwd_to := fwd_to.fwd_to.
 #[export] Register Scheme fwd_to.eqb as beq for fwd_to.fwd_to.
 
-Section DistributedHardwareProgram.
+Definition forwarding_table {node_id : node_idT} {mp : map.map (rel_id * fwd_from) (list fwd_to)} :=
+  partial_map (rel_id * fwd_from) (list fwd_to).
+
+Module node_info.
+  Section __.
   Context {node_id : node_idT}.
   Context {_fwd_tbl : map.map (rel_id * fwd_from) (list fwd_to)}.
+  Context {map_trie_id_trie : map.map trie_id trie}.
 
-  Definition forwarding_table := partial_map (rel_id * fwd_from) (list fwd_to).
-
-  (* A compiled node's program: its trie-join rules ([nprogram]), the tries they read ([ntries]),
-   and the forwarding table ([nforwarding]).  This is the per-node piece of the *distributed*
-   hardware program; the compiler ([DistributedDatalogToHardwareCompiler]) is what produces it. *)
   Record node_info := {
-      nid : node_id;
-      nprogram : hardware_program;
-      nforwarding : forwarding_table;
-      ntries : list trie;
+      program : list trie_rule;
+      forwarding : forwarding_table;
+      tries : list trie;
     }.
+  End __.
+End node_info. Abbreviation node_info := node_info.node_info.
 
-End DistributedHardwareProgram.
+#[export] Instance node_info_default {node_id : node_idT} {_fwd_tbl : map.map (rel_id * fwd_from) (list fwd_to)} :
+  WithDefault node_info :=
+  {| node_info.program := nil; node_info.forwarding := map.empty; node_info.tries := nil |}.
