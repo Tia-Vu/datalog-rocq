@@ -33,33 +33,27 @@ Module vnode.
   End eqb.
 End vnode. Export (hints) vnode. Abbreviation vnode := vnode.vnode.
 
+#[local] Existing Instance rel_id.
+#[local] Existing Instance no_fns.
+#[local] Existing Instance no_agg.
+
 Module Import RM := ResultMonadNotations.
 Section DistributedDatalogToHardwareCompiler.
-Context `{params : datalog_params}.
+Context `{exprvar : exprvarT} {var_eqb : Eqb exprvar} {var_eqb_ok : Eqb_ok var_eqb}.
 Context {node_id : node_idT} {node_id_eqb : Eqb node_id}.
 
 Context {map_node_id_unit : map.map node_id unit} {map_node_id_unit_ok : map.ok map_node_id_unit}.
-Context {map_node_id_lowered_program : map.map node_id lowered_program}.
+Context {map_node_id_list_rule : map.map node_id (list rule)}.
 Context {map_rel_id_list_node_id : map.map rel_id (list node_id)}.
 Context {map_rel_id_fwd_from_list_fwd_to : map.map (rel_id * fwd_from) (list fwd_to)}.
 Context {graph_vnode : graph.graph vnode}.
 Context {graph_node_id : graph.graph node_id}.
 
-Record node_context := {
-  nctries : list trie;
-  last_trie_id : trie_id;
-}.
-
-(*---- var_graph as ComputableGraph over var ----*)
-Context {var_node_set : map.map exprvar unit}.
-Context {var_node_set_ok : map.ok var_node_set}.
-Context {var_graph_impl : graph.graph exprvar} {var_graph_impl_ok : graph.ok var_graph_impl}.
-
 (* the reference program a layout induces: every rule placed on any node, unioned. *)
-Definition source_program (layout : partial_map node_id (list lowered_rule)) : list lowered_rule :=
+Definition source_program (layout : partial_map node_id (list rule)) : list rule :=
   concat (values layout).
 
-Definition layout_distributes_program (p : list lowered_rule) layout :=
+Definition layout_distributes_program (p : list rule) layout :=
   incl (source_program layout) p /\ incl p (source_program layout).
 
 Definition layout_distributes_programb p layout :=
