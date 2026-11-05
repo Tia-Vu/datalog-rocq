@@ -82,8 +82,7 @@ Module trie_rule.
     | rule.impl concls hyps => trie_rule.mk concls (map (trie_hyp.of_clause tries_inv) hyps)
     | rule.agg _ _ _ => trie_rule.mk [] [] (*garbage*)
     end.
-
   Definition of_rules {mp : map.map trie.trie trie_id} (rs : list rule) :=
-    let tries := map.of_list (enumerate O (flat_map trie.of_rule rs)) in
-    map (of_rule (invert tries)) rs.
+    let tries := map.of_list (map swap (enumerate O (dedup eqb (flat_map trie.of_rule rs)))) in
+    map (of_rule tries) rs.
 End trie_rule. Abbreviation trie_rule := trie_rule.trie_rule.
