@@ -171,6 +171,7 @@ Definition compile_node (program : list rule) (ft : forwarding_table) : node_inf
     node_info.forwarding := ft;
     node_info.tries := trie.of_rules ordered_rules; |}.
 
+(*TODO this should be defined using map.sum or something*)
 Definition compile_all_nodes (layout : partial_map node_id (list rule)) (ftables : partial_map node_id forwarding_table) : partial_map node_id node_info :=
   map.of_list
     (map (fun n => (n, compile_node (get_or_default layout n) (get_or_default ftables n)))
